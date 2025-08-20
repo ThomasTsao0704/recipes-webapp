@@ -1,3 +1,5 @@
+console.log('view ->', this.currentView, 'container.className =', document.getElementById('recipesContainer').className);
+
 class RecipeApp {
   constructor() {
     this.recipes = [];
@@ -21,17 +23,18 @@ class RecipeApp {
     this.setupNavTabs();
     this.setupAddForm();
     this.render();
+    this.updateViewClass(); // ← 可選的保險
   }
 
   // 範例資料（實務可改為載入 CSV）
   async loadSampleData() {
-  const resp = await fetch('recipes.csv');           // 放同資料夾
-  const text = await resp.text();
-  const parsed = Papa.parse(text, { header: true, skipEmptyLines: true });
-  this.recipes = parsed.data;
-  this.filteredRecipes = [...this.recipes];
-  this.updateCategories();
-}
+    const resp = await fetch('recipes.csv');           // 放同資料夾
+    const text = await resp.text();
+    const parsed = Papa.parse(text, { header: true, skipEmptyLines: true });
+    this.recipes = parsed.data;
+    this.filteredRecipes = [...this.recipes];
+    this.updateCategories();
+  }
 
 
   setupEventListeners() {
@@ -44,9 +47,11 @@ class RecipeApp {
 
     viewButtons.forEach((btn) => {
       btn.addEventListener('click', (e) => {
+        // 用 currentTarget，避免點到子元素時抓錯目標
+        const self = e.currentTarget;
         viewButtons.forEach((b) => b.classList.remove('active'));
-        e.target.classList.add('active');
-        this.currentView = e.target.dataset.view;
+        self.classList.add('active');
+        this.currentView = self.dataset.view;
         this.updateViewClass();
       });
     });
@@ -243,6 +248,7 @@ class RecipeApp {
   render() {
     this.updateStats();
     this.renderRecipes();
+    this.updateViewClass(); // ← 新增這行，確保切換後不會被其它 render 影響
   }
 
   updateStats() {
