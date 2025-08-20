@@ -1,165 +1,239 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
-
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>美食食譜瀏覽</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>美食食譜瀏覽</title>
 
-    <!-- 外掛：PapaParse 供 CSV 解析 -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js" defer></script>
+  <!-- 外掛：PapaParse 供 CSV 解析 -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js" defer></script>
 
-    <!-- 你的樣式 -->
-    <link rel="stylesheet" href="style.css" />
-  <link rel="manifest" href="manifest.json">
+  <!-- 你的樣式 -->
+  <link rel="stylesheet" href="style.css" />
 
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#667eea">
-  <link rel="apple-touch-icon" href="icon-192.png">
 </head>
-
 <body>
-    <div class="container">
-        <header>
-            <h1>🍳 美食食譜瀏覽</h1>
-            <p class="subtitle">探索美味食譜，享受料理時光</p>
-            <nav class="nav-tabs">
-                <button class="nav-btn active" data-page="browse">📖 瀏覽食譜</button>
-                <button class="nav-btn" data-page="add">➕ 新增食譜</button>
-            </nav>
-        </header>
+  <header class="topbar">
+    <div class="brand">食譜 WebApp</div>
+    <div class="actions">
+      <button id="btnPickFolder" class="btn btn-accent">選擇資料夾</button>
+      <button id="btnWriteCSV" class="btn btn-accent">寫入 Recipes.csv</button>
+      <button id="btnImport" class="btn">匯入 CSV</button>
+      <input id="fileInput" type="file" accept=".csv,text/csv" class="hidden" />
+      <button id="btnExport" class="btn btn-accent">匯出 CSV</button>
+      <button id="btnLogin" class="btn">管理者登入</button>
+      <button id="btnLogout" class="btn btn-secondary hidden">登出</button>
+    </div>
+  </header>
 
-        <!-- 瀏覽區 -->
-        <div class="page active" id="browsePage">
-            <div class="filters">
-                <div class="filter-row">
-                    <input type="text" id="searchInput" placeholder="🔍 搜尋食譜、食材或標籤..." />
-                    <select id="categorySelect">
-                        <option value="">📋 全部分類</option>
-                    </select>
-                    <div class="view-toggle">
-                        <button class="view-btn active" data-view="grid">網格</button>
-                        <button class="view-btn" data-view="list">列表</button>
-                    </div>
-                </div>
-            </div>
+  <div id="loginModal" class="modal hidden" aria-hidden="true">
+    <div class="modal-content">
+      <h2>管理者登入</h2>
+      <label>帳號</label>
+      <input id="adminUser" type="text" placeholder="admin">
+      <label>密碼</label>
+      <input id="adminPass" type="password" placeholder="••••••••">
+      <div class="modal-actions">
+        <button id="confirmLogin" class="btn">登入</button>
+        <button id="cancelLogin" class="btn btn-secondary">取消</button>
+      </div>
+      <p class="hint">初始帳號：<code>admin</code>；初始密碼：<code>recipes123</code></p>
+    </div>
+  </div>
 
-            <div class="stats" id="stats">載入中...</div>
+  <div class="container">
+    <header>
+      <h1>🍳 美食食譜瀏覽</h1>
+      <p class="subtitle">探索美味食譜，享受料理時光</p>
+      <nav class="nav-tabs">
+        <button class="nav-btn active" data-page="browse">📖 瀏覽食譜</button>
+        <button class="nav-btn" data-page="add">➕ 新增食譜</button>
+      </nav>
+    </header>
 
-            <div id="recipesContainer" class="recipes-grid">
-                <div class="loading">正在載入食譜資料</div>
-            </div>
+    <!-- 瀏覽區 -->
+    <div class="page active" id="browsePage">
+      <div class="filters">
+        <div class="filter-row">
+          <input type="text" id="searchInput" placeholder="🔍 搜尋食譜、食材或標籤..." />
+          <select id="categorySelect">
+            <option value="">📋 全部分類</option>
+          </select>
+          <div class="view-toggle">
+            <button class="view-btn active" data-view="grid">網格</button>
+            <button class="view-btn" data-view="list">列表</button>
+          </div>
         </div>
+      </div>
 
-        <!-- 新增區 -->
-        <div class="page" id="addPage">
-            <div class="add-recipe-form">
-                <div class="success-message" id="successMessage">✅ 食譜新增成功！</div>
+      <div class="stats" id="stats">載入中...</div>
 
-                <form id="addRecipeForm">
-                    <div class="form-section">
-                        <h3>📝 基本資訊</h3>
-                        <div class="form-group">
-                            <label for="recipeTitle">食譜名稱 *</label>
-                            <input type="text" id="recipeTitle" required placeholder="例如：番茄肉醬義大利麵" />
-                        </div>
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label for="recipeCategory">分類</label>
-                                <select id="recipeCategory">
-                                    <option value="">選擇分類</option>
-                                    <option value="主食">主食</option>
-                                    <option value="中式">中式</option>
-                                    <option value="日式">日式</option>
-                                    <option value="韓式">韓式</option>
-                                    <option value="西式">西式</option>
-                                    <option value="泰式">泰式</option>
-                                    <option value="湯品">湯品</option>
-                                    <option value="沙拉">沙拉</option>
-                                    <option value="甜點">甜點</option>
-                                    <option value="飲品">飲品</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label for="recipeServings">份量</label>
-                                <input type="number" id="recipeServings" min="1" placeholder="人份" />
-                            </div>
-                        </div>
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label for="prepTime">準備時間（分鐘）</label>
-                                <input type="number" id="prepTime" min="0" placeholder="15" />
-                            </div>
-                            <div class="form-group">
-                                <label for="cookTime">烹飪時間（分鐘）</label>
-                                <input type="number" id="cookTime" min="0" placeholder="30" />
-                            </div>
-                            <div class="form-group">
-                                <label for="calories">熱量（卡路里）</label>
-                                <input type="number" id="calories" min="0" placeholder="500" />
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="form-section">
-                        <h3>🏷️ 標籤</h3>
-                        <div class="tags-input">
-                            <input type="text" id="tagsInput" placeholder="輸入標籤後按 Enter（例如：家常菜）" />
-                            <div class="tags-display" id="tagsDisplay"></div>
-                        </div>
-                    </div>
-
-                    <div class="form-section">
-                        <h3>🥬 食材清單</h3>
-                        <div class="ingredients-list" id="ingredientsList">
-                            <div class="ingredient-item">
-                                <input type="text" placeholder="例如：義大利麵 200g" required />
-                                <button type="button" class="remove-btn"
-                                    onclick="app.removeIngredient(this)">移除</button>
-                            </div>
-                        </div>
-                        <button type="button" class="add-btn" onclick="app.addIngredient()">➕ 新增食材</button>
-                    </div>
-
-                    <div class="form-section">
-                        <h3>👨‍🍳 製作步驟</h3>
-                        <div class="steps-list" id="stepsList">
-                            <div class="step-item">
-                                <span style="font-weight: bold; min-width: 30px;">1.</span>
-                                <input type="text" placeholder="詳細描述第一個步驟" required />
-                                <button type="button" class="remove-btn" onclick="app.removeStep(this)">移除</button>
-                            </div>
-                        </div>
-                        <button type="button" class="add-btn" onclick="app.addStep()">➕ 新增步驟</button>
-                    </div>
-
-                    <div class="form-section">
-                        <h3>🖼️ 圖片網址（選填）</h3>
-                        <div class="form-group">
-                            <label for="imageUrl">圖片連結</label>
-                            <input type="url" id="imageUrl" placeholder="https://example.com/image.jpg" />
-                        </div>
-                    </div>
-
-                    <div class="form-actions">
-                        <button type="button" class="btn btn-secondary" onclick="app.clearForm()">清空表單</button>
-                        <button type="submit" class="btn btn-primary">💾 儲存食譜</button>
-                    </div>
-                </form>
-            </div>
-        </div>
+      <div id="recipesContainer" class="recipes-grid">
+        <div class="loading">正在載入食譜資料</div>
+      </div>
     </div>
 
-    <!-- 你的腳本 -->
-    <script src="data.js" defer></script>
-    <script src="app.js" defer></script>
+    <!-- 新增區 -->
+    <div class="page" id="addPage">
+      <div class="add-recipe-form">
+        <div class="success-message" id="successMessage">✅ 食譜新增成功！</div>
 
-<script>
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('service-worker.js');
-  });
-}
-</script>
+        <form id="addRecipeForm">
+          <div class="form-section">
+            <h3>📝 基本資訊</h3>
+            <div class="form-group">
+              <label for="recipeTitle">食譜名稱 *</label>
+              <input type="text" id="recipeTitle" required placeholder="例如：番茄肉醬義大利麵" />
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="recipeCategory">分類</label>
+                <select id="recipeCategory">
+                  <option value="">選擇分類</option>
+                  <option value="主食">主食</option>
+                  <option value="中式">中式</option>
+                  <option value="日式">日式</option>
+                  <option value="韓式">韓式</option>
+                  <option value="西式">西式</option>
+                  <option value="泰式">泰式</option>
+                  <option value="湯品">湯品</option>
+                  <option value="沙拉">沙拉</option>
+                  <option value="甜點">甜點</option>
+                  <option value="飲品">飲品</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="recipeServings">份量</label>
+                <input type="number" id="recipeServings" min="1" placeholder="人份" />
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="prepTime">準備時間（分鐘）</label>
+                <input type="number" id="prepTime" min="0" placeholder="15" />
+              </div>
+              <div class="form-group">
+                <label for="cookTime">烹飪時間（分鐘）</label>
+                <input type="number" id="cookTime" min="0" placeholder="30" />
+              </div>
+              <div class="form-group">
+                <label for="calories">熱量（卡路里）</label>
+                <input type="number" id="calories" min="0" placeholder="500" />
+              </div>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <h3>🏷️ 標籤</h3>
+            <div class="tags-input">
+              <input type="text" id="tagsInput" placeholder="輸入標籤後按 Enter（例如：家常菜）" />
+              <div class="tags-display" id="tagsDisplay"></div>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <h3>🥬 食材清單</h3>
+            <div class="ingredients-list" id="ingredientsList">
+              <div class="ingredient-item">
+                <input type="text" placeholder="例如：義大利麵 200g" required />
+                <button type="button" class="remove-btn" onclick="app.removeIngredient(this)">移除</button>
+              </div>
+            </div>
+            <button type="button" class="add-btn" onclick="app.addIngredient()">➕ 新增食材</button>
+          </div>
+
+          <div class="form-section">
+            <h3>👨‍🍳 製作步驟</h3>
+            <div class="steps-list" id="stepsList">
+              <div class="step-item">
+                <span style="font-weight: bold; min-width: 30px;">1.</span>
+                <input type="text" placeholder="詳細描述第一個步驟" required />
+                <button type="button" class="remove-btn" onclick="app.removeStep(this)">移除</button>
+              </div>
+            </div>
+            <button type="button" class="add-btn" onclick="app.addStep()">➕ 新增步驟</button>
+          </div>
+
+          <div class="form-section">
+            <h3>🖼️ 圖片網址（選填）</h3>
+            <div class="form-group">
+              <label for="imageUrl">圖片連結</label>
+              <input type="url" id="imageUrl" placeholder="https://example.com/image.jpg" />
+            </div>
+          </div>
+
+          <div class="form-actions">
+            <button type="button" class="btn btn-secondary" onclick="app.clearForm()">清空表單</button>
+            <button type="submit" class="btn btn-primary">💾 儲存食譜</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- 編輯抽屜 （先保留，不影響核心） -->
+  <aside id="editDrawer" class="drawer hidden" aria-hidden="true">
+    <div class="drawer-header">
+      <h3>編輯食譜</h3>
+      <button id="closeDrawer" class="btn btn-secondary">關閉</button>
+    </div>
+    <form id="editForm" class="edit-form">
+      <label>標題</label>
+      <input name="title" type="text" required>
+      <label>分類</label>
+      <input name="category" type="text">
+      <label>標籤（分號分隔）</label>
+      <input name="tags" type="text">
+      <label>食材（每項以 | 分隔）</label>
+      <textarea name="ingredients" rows="3"></textarea>
+      <label>步驟（多行）</label>
+      <textarea name="steps" rows="5"></textarea>
+      <div class="grid-2">
+        <div>
+          <label>準備（分鐘）</label>
+          <input name="prep_minutes" type="number" min="0">
+        </div>
+        <div>
+          <label>烹調（分鐘）</label>
+          <input name="cook_minutes" type="number" min="0">
+        </div>
+      </div>
+      <div class="grid-2">
+        <div>
+          <label>份量</label>
+          <input name="servings" type="number" min="1">
+        </div>
+        <div>
+          <label>卡路里</label>
+          <input name="calories" type="number" min="0">
+        </div>
+      </div>
+      <label>上傳圖片（儲存至本機 images/ 資料夾）</label>
+      <input id="imageFile" name="image_file" type="file" accept="image/*">
+      <div id="imagePreview" style="margin:8px 0;"></div>
+      <div class="drawer-actions">
+        <button id="saveRecipe" class="btn">儲存</button>
+        <button id="deleteRecipe" class="btn btn-danger">刪除</button>
+      </div>
+    </form>
+  </aside>
+
+  <!-- 你的腳本 -->
+  <script src="data.js" defer></script>
+  <script src="app.js" defer></script>
+
+  <script>
+    (function(){
+      function registerSW(){
+        if ("serviceWorker" in navigator) {
+          navigator.serviceWorker.register("./sw.js").catch(console.error);
+        }
+      }
+      function onceReady(fn){ if (document.readyState !== "loading") fn(); else document.addEventListener("DOMContentLoaded", fn); }
+      onceReady(registerSW);
+    })();
+  </script>
 </body>
 </html>
