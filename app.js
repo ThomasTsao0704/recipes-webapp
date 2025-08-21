@@ -1,3 +1,4 @@
+
 // app.js
 (() => {
   const $ = (sel, root = document) => root.querySelector(sel);
@@ -245,6 +246,7 @@
       </div>`;
   }
 
+  
   // ====== 編輯抽屜 ======
   function bindEditDrawer(){
     // 卡片上的「編輯」按鈕事件（事件委派）
@@ -586,3 +588,21 @@
     clearForm
   };
 })();
+  // 全局 ESC 關閉所有 modal（包含登入/編輯）
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape'){
+      // 登入
+      if (el.loginModal.getAttribute('aria-hidden') === 'false') {
+        const inner = el.loginModal.querySelector('.modal');
+        if (inner) inner.setAttribute('aria-hidden','true');
+        el.loginModal.setAttribute('aria-hidden','true');
+        document.documentElement.style.overflow = '';
+      }
+      // 編輯
+      if (el.editModal.getAttribute('aria-hidden') === 'false') {
+        el.editModal.setAttribute('aria-hidden','true');
+        el.editBackdrop.setAttribute('aria-hidden','true');
+        document.documentElement.style.overflow = '';
+      }
+    }
+  });

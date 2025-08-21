@@ -172,40 +172,84 @@
       </div>
     </div>
   </div>
+<!-- ========== 食譜清單（示範）你原本會用 render() 來生成 ========== -->
+<div id="recipeList" class="recipe-grid"></div>
 
-  <!-- 編輯抽屜 （先保留，不影響核心） -->
-  <aside id="editDrawer" class="drawer hidden" aria-hidden="true">
+
+<!-- ========== 置中 Modal：按「編輯」後才開啟 ========== -->
+<div id="editBackdrop" class="modal-backdrop" aria-hidden="true"></div>
+<div id="editModal" class="modal" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="editTitle">
+<header>
+<h3 id="editTitle">編輯食譜</h3>
+<button class="close-x" type="button" data-close>✕</button>
+</header>
+
+
+<form id="editForm">
+<!-- 注意：name 對應資料鍵值（用於讀寫） -->
+<div class="field"><label>編號（唯一定義）</label><input name="id" placeholder="R001" required /></div>
+<div class="field"><label>名稱</label><input name="title" placeholder="番茄肉醬義大利麵" required /></div>
+<div class="two-col">
+<div class="field"><label>分類</label><input name="category" placeholder="義大利麵" /></div>
+<div class="field"><label>標籤（以逗號分隔）</label><input name="tags" placeholder="義式, 快速, 家常" /></div>
+</div>
+<div class="field"><label>材料（多行；可逗號或換行）</label><textarea name="ingredients" rows="3" placeholder="義大利麵, 牛絞肉, 洋蔥, 大蒜, 番茄糊"></textarea></div>
+<div class="field"><label>步驟（多行）</label><textarea name="steps" rows="4" placeholder="1. 川燙麵...\n2. 爆香...\n3. 拌炒..."></textarea></div>
+
+
+<div class="two-col">
+<div class="field"><label>前置分鐘</label><input name="prep_minutes" type="number" min="0" step="1" value="0" /></div>
+<div class="field"><label>烹飪分鐘</label><input name="cook_minutes" type="number" min="0" step="1" value="0" /></div>
+</div>
+<div class="two-col">
+<div class="field"><label>份量</label><input name="servings" type="number" min="1" step="1" value="1" /></div>
+<div class="field"><label>卡路里</label><input name="calories" type="number" min="0" step="1" value="0" /></div>
+</div>
+<div class="field"><label>圖片網址</label><input name="image_url" placeholder="https://..." /></div>
+
+
+<footer>
+<button type="button" class="btn danger" data-delete>刪除</button>
+<div style="display:flex; gap:8px;">
+<button type="button" class="btn secondary" data-close>取消</button>
+<button type="submit" class="btn">儲存</button>
+</div>
+</footer>
+</form>
+</div>
+  <!-- 編輯抽屜 （先保留，不影響核心） 
+  <aside id="editDrawer " class="drawer hidden .modal" aria-hidden="true">
     <div class="drawer-header">
       <h3>編輯食譜</h3>
       <button id="closeDrawer" class="btn btn-secondary">關閉</button>
     </div>
     <form id="editForm" class="edit-form">
-      <label>標題</label>
+      <label class="field">標題</label>
       <input name="title" type="text" required>
-      <label>分類</label>
+      <label class="field">分類</label>
       <input name="category" type="text">
-      <label>標籤（分號分隔）</label>
+      <label class="field">標籤（分號分隔）</label>
       <input name="tags" type="text">
       <label>食材（每項以 | 分隔）</label>
       <textarea name="ingredients" rows="3"></textarea>
       <label>步驟（多行）</label>
       <textarea name="steps" rows="5"></textarea>
-      <div class="grid-2">
-        <div>
+      <div class="grid-2 two-col">
+        <div class="field">
           <label>準備（分鐘）</label>
           <input name="prep_minutes" type="number" min="0">
         </div>
-        <div>
+        <div class="field">
           <label>烹調（分鐘）</label>
           <input name="cook_minutes" type="number" min="0">
         </div>
       </div>
-      <div class="grid-2">
-        <div>
+      <div class="grid-2 two-col">
+        <div class="field">
           <label>份量</label>
           <input name="servings" type="number" min="1">
         </div>
-        <div>
+        <div class="field">
           <label>卡路里</label>
           <input name="calories" type="number" min="0">
         </div>
@@ -219,7 +263,7 @@
       </div>
     </form>
   </aside>
-
+-->
   <!-- 你的腳本 -->
   <script src="data.js" defer></script>
   <script src="app.js" defer></script>
