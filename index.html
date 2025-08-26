@@ -1,283 +1,178 @@
-<!DOCTYPE html>
-<html lang="zh-TW">
+<!doctype html>
+
+<html lang="zh-Hant">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>美食食譜瀏覽</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>採購小幫手 · 購物車 WebApp</title>
+  <style>
+    :root{ --radius:14px; --gap:10px; --muted:#6b7280; --border:#e5e7eb; --bg:#fafafa; --primary:#0a58ca; }
+    *{box-sizing:border-box}
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,"Noto Sans TC",Arial,sans-serif;margin:0;background:var(--bg);color:#111827}
+    .container{max-width:1000px;margin:0 auto;padding:16px}
+    header{display:flex;flex-wrap:wrap;gap:var(--gap);align-items:center;justify-content:space-between;margin-bottom:12px}
+    h1{font-size:1.25rem;margin:0}
+    .toolbar{display:flex;flex-wrap:wrap;gap:var(--gap)}
+    .toolbar>*{border:1px solid var(--border);border-radius:var(--radius);background:#fff;padding:8px 10px}
+    input[type="search"]{min-width:200px}
+    button{cursor:pointer}
+    button.primary{background:var(--primary);color:#fff;border-color:transparent}
+    button.ghost{background:#fff}
+    .table-wrap{overflow:auto;border:1px solid var(--border);border-radius:var(--radius);background:#fff}
+    table{width:100%;border-collapse:separate;border-spacing:0;min-width:720px}
+    thead th{position:sticky;top:0;background:#fff;border-bottom:1px solid var(--border);text-align:left;padding:10px;white-space:nowrap}
+    tbody td{border-bottom:1px solid #f1f5f9;padding:8px 10px;vertical-align:middle}
+    tbody tr:hover{background:#fafafa}
+    .num{font-variant-numeric:tabular-nums}
+    .qty{display:flex;align-items:center;gap:6px}
+    .qty input{width:78px;text-align:right;padding:6px 8px;border:1px solid var(--border);border-radius:10px}
+    .qty button{width:28px;height:28px;border:1px solid var(--border);border-radius:8px;background:#fff;line-height:0}
+    .summary{display:grid;grid-template-columns:1fr;gap:10px;margin-top:12px}
+    .card{border:1px solid var(--border);border-radius:var(--radius);background:#fff;padding:12px}
+    .grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+    .totals{display:flex;justify-content:space-between;align-items:center}
+    .totals .price{font-weight:700;font-size:1.25rem}
+    .muted{color:var(--muted)}.toast{position:fixed;right:16px;bottom:16px;background:#16a34a;color:#fff;padding:10px 14px;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.15);opacity:0;transform:translateY(12px);pointer-events:none;transition:opacity .25s ease, transform .25s ease;font-size:.95rem}
+.toast.show{opacity:1;transform:translateY(0)}
+.toast.error{background:#dc2626}
 
-  <!-- 外掛：PapaParse 供 CSV 解析 -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js" defer></script>
+@media (max-width:640px){
+  input[type="search"]{min-width:unset;width:100%}
+  .grid-3{grid-template-columns:1fr}
+  table{min-width:600px}
+  .toast{left:16px;right:16px}
+}
 
-  <!-- 你的樣式 -->
-  <link rel="stylesheet" href="style.css" />
-
-  <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#667eea">
+  </style>
 </head>
 <body>
-  <header class="topbar">
-    <div class="brand">食譜 WebApp</div>
-    <div class="actions">
-      <button id="btnPickFolder" class="btn btn-accent">選擇資料夾</button>
-      <button id="btnWriteCSV" class="btn btn-accent">寫入 Recipes.csv</button>
-      <button id="btnImport" class="btn">匯入 CSV</button>
-      <input id="fileInput" type="file" accept=".csv,text/csv" class="hidden" />
-      <button id="btnExport" class="btn btn-accent">匯出 CSV</button>
-      <button id="btnLogin" class="btn">管理者登入</button>
-      <button id="btnLogout" class="btn btn-secondary hidden">登出</button>
-    </div>
-  </header>
-
-  <div id="loginModal" class="modal hidden" aria-hidden="true">
-    <div class="modal-content">
-      <h2>管理者登入</h2>
-      <label>帳號</label>
-      <input id="adminUser" type="text" placeholder="admin">
-      <label>密碼</label>
-      <input id="adminPass" type="password" placeholder="••••••••">
-      <div class="modal-actions">
-        <button id="confirmLogin" class="btn">登入</button>
-        <button id="cancelLogin" class="btn btn-secondary">取消</button>
-      </div>
-      <p class="hint">初始帳號：<code>admin</code>；初始密碼：<code>recipes123</code></p>
-    </div>
-  </div>
-
   <div class="container">
     <header>
-      <h1>🍳 美食食譜瀏覽</h1>
-      <p class="subtitle">探索美味食譜，享受料理時光</p>
-      <nav class="nav-tabs">
-        <button class="nav-btn active" data-page="browse">📖 瀏覽食譜</button>
-        <button class="nav-btn" data-page="add">➕ 新增食譜</button>
-      </nav>
-    </header>
-
-    <!-- 瀏覽區 -->
-    <div class="page active" id="browsePage">
-      <div class="filters">
-        <div class="filter-row">
-          <input type="text" id="searchInput" placeholder="🔍 搜尋食譜、食材或標籤..." />
-          <select id="categorySelect">
-            <option value="">📋 全部分類</option>
-          </select>
-          <div class="view-toggle">
-            <button class="view-btn active" data-view="grid">網格</button>
-            <button class="view-btn" data-view="list">列表</button>
-          </div>
-        </div>
+      <h1>採購小幫手 · 簡易購物車</h1>
+      <div class="toolbar">
+        <input id="q" type="search" placeholder="搜尋品項 / 單位 / 店家…" />
+        <select id="shopFilter"><option value="">全部店家</option></select>
+        <button id="resetBtn" class="ghost">清空數量</button>
+        <button id="exportBtn" class="ghost">匯出</button>
       </div>
+    </header><div class="table-wrap">
+  <table id="tbl">
+    <thead><tr><th>#</th><th>品項</th><th>單位</th><th class="num">單價</th><th>店家</th><th class="num">數量</th><th class="num">小計</th></tr></thead>
+    <tbody></tbody>
+  </table>
+</div>
 
-      <div class="stats" id="stats">載入中...</div>
-
-      <div id="recipesContainer" class="recipes-grid">
-        <div class="loading">正在載入食譜資料</div>
+<section class="summary">
+  <div class="card">
+    <div class="totals">
+      <div>
+        <div class="muted">未稅合計（所有品項）</div>
+        <div id="grandCount" class="muted" style="font-size:.9rem"></div>
       </div>
-    </div>
-
-    <!-- 新增區 -->
-    <div class="page" id="addPage">
-      <div class="add-recipe-form">
-        <div class="success-message" id="successMessage">✅ 食譜新增成功！</div>
-
-        <form id="addRecipeForm">
-          <div class="form-section">
-            <h3>📝 基本資訊</h3>
-            <div class="form-group">
-              <label for="recipeTitle">食譜名稱 *</label>
-              <input type="text" id="recipeTitle" required placeholder="例如：番茄肉醬義大利麵" />
-            </div>
-            <div class="form-row">
-              <div class="form-group">
-                <label for="recipeCategory">分類</label>
-                <select id="recipeCategory">
-                  <option value="">選擇分類</option>
-                  <option value="主食">主食</option>
-                  <option value="中式">中式</option>
-                  <option value="日式">日式</option>
-                  <option value="韓式">韓式</option>
-                  <option value="西式">西式</option>
-                  <option value="泰式">泰式</option>
-                  <option value="湯品">湯品</option>
-                  <option value="沙拉">沙拉</option>
-                  <option value="甜點">甜點</option>
-                  <option value="飲品">飲品</option>
-                </select>
-              </div>
-              <div class="form-group">
-                <label for="recipeServings">份量</label>
-                <input type="number" id="recipeServings" min="1" placeholder="人份" />
-              </div>
-            </div>
-            <div class="form-row">
-              <div class="form-group">
-                <label for="prepTime">準備時間（分鐘）</label>
-                <input type="number" id="prepTime" min="0" placeholder="15" />
-              </div>
-              <div class="form-group">
-                <label for="cookTime">烹飪時間（分鐘）</label>
-                <input type="number" id="cookTime" min="0" placeholder="30" />
-              </div>
-              <div class="form-group">
-                <label for="calories">熱量（卡路里）</label>
-                <input type="number" id="calories" min="0" placeholder="500" />
-              </div>
-            </div>
-          </div>
-
-          <div class="form-section">
-            <h3>🏷️ 標籤</h3>
-            <div class="tags-input">
-              <input type="text" id="tagsInput" placeholder="輸入標籤後按 Enter（例如：家常菜）" />
-              <div class="tags-display" id="tagsDisplay"></div>
-            </div>
-          </div>
-
-          <div class="form-section">
-            <h3>🥬 食材清單</h3>
-            <div class="ingredients-list" id="ingredientsList">
-              <div class="ingredient-item">
-                <input type="text" placeholder="例如：義大利麵 200g" required />
-                <button type="button" class="remove-btn" onclick="app.removeIngredient(this)">移除</button>
-              </div>
-            </div>
-            <button type="button" class="add-btn" onclick="app.addIngredient()">➕ 新增食材</button>
-          </div>
-
-          <div class="form-section">
-            <h3>👨‍🍳 製作步驟</h3>
-            <div class="steps-list" id="stepsList">
-              <div class="step-item">
-                <span style="font-weight: bold; min-width: 30px;">1.</span>
-                <input type="text" placeholder="詳細描述第一個步驟" required />
-                <button type="button" class="remove-btn" onclick="app.removeStep(this)">移除</button>
-              </div>
-            </div>
-            <button type="button" class="add-btn" onclick="app.addStep()">➕ 新增步驟</button>
-          </div>
-
-          <div class="form-section">
-            <h3>🖼️ 圖片網址（選填）</h3>
-            <div class="form-group">
-              <label for="imageUrl">圖片連結</label>
-              <input type="url" id="imageUrl" placeholder="https://example.com/image.jpg" />
-            </div>
-          </div>
-
-          <div class="form-actions">
-            <button type="button" class="btn btn-secondary" onclick="app.clearForm()">清空表單</button>
-            <button type="submit" class="btn btn-primary">💾 儲存食譜</button>
-          </div>
-        </form>
-      </div>
+      <div id="grandTotal" class="price">$0</div>
     </div>
   </div>
-<!-- ========== 食譜清單（示範）你原本會用 render() 來生成 ========== -->
-<div id="recipeList" class="recipe-grid"></div>
+  <div class="grid-3">
+    <div class="card"><div class="muted">清順 小計</div><div id="sum-qingshun" class="price">$0</div></div>
+    <div class="card"><div class="muted">寶成 小計</div><div id="sum-baocheng" class="price">$0</div></div>
+    <div class="card"><div class="muted">已選擇品項數</div><div id="pickedCount" class="price">0</div></div>
+  </div>
+</section>
 
+  </div>  <div id="toast" class="toast" role="status" aria-live="polite"></div>  <script>
+    const DATA=[
+      {id:'A01',item:'吸管',unit:'50支/包',price:284,shop:'清順'},
+      {id:'A02',item:'冰砂吸管',unit:'50支/包',price:1351,shop:'清順'},
+      {id:'A03',item:'9x9 紙巾',unit:'20包/箱',price:1637,shop:'清順'},
+      {id:'A04',item:'抽取式 衛生紙',unit:'20包/箱',price:1720,shop:'清順'},
+      {id:'A05',item:'廚房紙巾',unit:'50支/包',price:1896,shop:'清順'},
+      {id:'B01',item:'牛皮紙 外帶盒(S)',unit:'50個/條',price:1944,shop:'寶成'},
+      {id:'B02',item:'牛皮紙 外帶盒(L)',unit:'50個/條',price:1973,shop:'寶成'},
+      {id:'B03',item:'外帶比薩盒',unit:'50個/條',price:1994,shop:'寶成'},
+    ];
+    const state={qty:Object.fromEntries(DATA.map(d=>[d.id,0]))};
+    const fmt=new Intl.NumberFormat('zh-Hant-TW',{minimumFractionDigits:0,maximumFractionDigits:0});
+    const $tbody=document.querySelector('#tbl tbody');
+    const $q=document.getElementById('q');
+    const $shopFilter=document.getElementById('shopFilter');
+    const $grandTotal=document.getElementById('grandTotal');
+    const $grandCount=document.getElementById('grandCount');
+    const $sumQingShun=document.getElementById('sum-qingshun');
+    const $sumBaoCheng=document.getElementById('sum-baocheng');
+    const $pickedCount=document.getElementById('pickedCount');
+    const $resetBtn=document.getElementById('resetBtn');
+    const $exportBtn=document.getElementById('exportBtn');
 
-<!-- ========== 置中 Modal：按「編輯」後才開啟 ========== -->
-<div id="editBackdrop" class="modal-backdrop" aria-hidden="true"></div>
-<div id="editModal" class="modal" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="editTitle">
-<header>
-<h3 id="editTitle">編輯食譜</h3>
-<button class="close-x" type="button" data-close>✕</button>
-</header>
+    let toastTimer=null;
+    function showToast(text,{error=false,duration=1800}={}){
+      const t=document.getElementById('toast');
+      t.textContent=text; t.classList.remove('error');
+      if(error) t.classList.add('error');
+      t.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer=setTimeout(()=>t.classList.remove('show'), duration);
+    }
 
+    const shops=[...new Set(DATA.map(d=>d.shop))];
+    for(const s of shops){const opt=document.createElement('option');opt.value=s;opt.textContent=s;$shopFilter.appendChild(opt);}
 
-<form id="editForm">
-<!-- 注意：name 對應資料鍵值（用於讀寫） -->
-<div class="field"><label>編號（唯一定義）</label><input name="id" placeholder="R001" required /></div>
-<div class="field"><label>名稱</label><input name="title" placeholder="番茄肉醬義大利麵" required /></div>
-<div class="two-col">
-<div class="field"><label>分類</label><input name="category" placeholder="義大利麵" /></div>
-<div class="field"><label>標籤（以逗號分隔）</label><input name="tags" placeholder="義式, 快速, 家常" /></div>
-</div>
-<div class="field"><label>材料（多行；可逗號或換行）</label><textarea name="ingredients" rows="3" placeholder="義大利麵, 牛絞肉, 洋蔥, 大蒜, 番茄糊"></textarea></div>
-<div class="field"><label>步驟（多行）</label><textarea name="steps" rows="4" placeholder="1. 川燙麵...\n2. 爆香...\n3. 拌炒..."></textarea></div>
+    function render(){
+      const kw=($q.value||'').trim().toLowerCase();
+      const shop=$shopFilter.value;
+      const rows=DATA.filter(d=>{const text=`${d.item} ${d.unit} ${d.shop}`.toLowerCase();return(!kw||text.includes(kw))&&(!shop||d.shop===shop)});
+      $tbody.innerHTML='';
+      rows.forEach((d,idx)=>{
+        const tr=document.createElement('tr');
+        tr.innerHTML=`<td class="num">${idx+1}</td><td>${d.item}</td><td>${d.unit}</td><td class="num">$${fmt.format(d.price)}</td><td>${d.shop}</td><td class="num"><div class="qty"><button data-act="dec" data-id="${d.id}">−</button><input type="number" min="0" step="1" data-id="${d.id}" value="${state.qty[d.id]||0}" /><button data-act="inc" data-id="${d.id}">＋</button></div></td><td class="num" data-sub="${d.id}">$${fmt.format((state.qty[d.id]||0)*d.price)}</td>`;
+        $tbody.appendChild(tr);
+      });
+      bindRowEvents();
+      recalcTotals();
+    }
 
+    function bindRowEvents(){
+      $tbody.querySelectorAll('button[data-id]').forEach(btn=>btn.addEventListener('click',()=>{
+        const id=btn.dataset.id;const act=btn.dataset.act;const cur=Number(state.qty[id]||0);const next=Math.max(0,cur+(act==='inc'?1:-1));state.qty[id]=next;
+        const input=$tbody.querySelector(`input[data-id="${id}"]`);if(input)input.value=next;
+        const d=DATA.find(x=>x.id===id);const td=$tbody.querySelector(`[data-sub="${id}"]`);if(td)td.textContent=`$${fmt.format(next*d.price)}`;
+        recalcTotals();
+      }));
+      $tbody.querySelectorAll('input[data-id]').forEach(inp=>inp.addEventListener('input',()=>{
+        const id=inp.dataset.id;let v=Number(inp.value||0);if(isNaN(v)||v<0)v=0;inp.value=v;state.qty[id]=v;
+        const d=DATA.find(x=>x.id===id);const td=$tbody.querySelector(`[data-sub="${id}"]`);if(td)td.textContent=`$${fmt.format(v*d.price)}`;
+        recalcTotals();
+      }));
+    }
 
-<div class="two-col">
-<div class="field"><label>前置分鐘</label><input name="prep_minutes" type="number" min="0" step="1" value="0" /></div>
-<div class="field"><label>烹飪分鐘</label><input name="cook_minutes" type="number" min="0" step="1" value="0" /></div>
-</div>
-<div class="two-col">
-<div class="field"><label>份量</label><input name="servings" type="number" min="1" step="1" value="1" /></div>
-<div class="field"><label>卡路里</label><input name="calories" type="number" min="0" step="1" value="0" /></div>
-</div>
-<div class="field"><label>圖片網址</label><input name="image_url" placeholder="https://..." /></div>
+    function recalcTotals(){
+      let grand=0,picked=0,countUnits=0,sumQS=0,sumBC=0;
+      for(const d of DATA){const q=Number(state.qty[d.id]||0);if(q>0){picked++;countUnits+=q;}const sub=q*d.price;grand+=sub;if(d.shop==='清順')sumQS+=sub;else if(d.shop==='寶成')sumBC+=sub;}
+      $grandTotal.textContent=`$${fmt.format(grand)}`;
+      $grandCount.textContent=`共 ${countUnits} 單位（${picked} 個品項）`;
+      $sumQingShun.textContent=`$${fmt.format(sumQS)}`;
+      $sumBaoCheng.textContent=`$${fmt.format(sumBC)}`;
+      $pickedCount.textContent=picked;
+    }
 
+    $q.addEventListener('input',render);
+    $shopFilter.addEventListener('change',render);
+    $resetBtn.addEventListener('click',()=>{if(!confirm('確定要清空所有數量嗎？'))return;for(const k in state.qty)state.qty[k]=0;render();});
 
-<footer>
-<button type="button" class="btn danger" data-delete>刪除</button>
-<div style="display:flex; gap:8px;">
-<button type="button" class="btn secondary" data-close>取消</button>
-<button type="submit" class="btn">儲存</button>
-</div>
-</footer>
-</form>
-</div>
-  <!-- 編輯抽屜 （先保留，不影響核心） 
-  <aside id="editDrawer " class="drawer hidden .modal" aria-hidden="true">
-    <div class="drawer-header">
-      <h3>編輯食譜</h3>
-      <button id="closeDrawer" class="btn btn-secondary">關閉</button>
-    </div>
-    <form id="editForm" class="edit-form">
-      <label class="field">標題</label>
-      <input name="title" type="text" required>
-      <label class="field">分類</label>
-      <input name="category" type="text">
-      <label class="field">標籤（分號分隔）</label>
-      <input name="tags" type="text">
-      <label>食材（每項以 | 分隔）</label>
-      <textarea name="ingredients" rows="3"></textarea>
-      <label>步驟（多行）</label>
-      <textarea name="steps" rows="5"></textarea>
-      <div class="grid-2 two-col">
-        <div class="field">
-          <label>準備（分鐘）</label>
-          <input name="prep_minutes" type="number" min="0">
-        </div>
-        <div class="field">
-          <label>烹調（分鐘）</label>
-          <input name="cook_minutes" type="number" min="0">
-        </div>
-      </div>
-      <div class="grid-2 two-col">
-        <div class="field">
-          <label>份量</label>
-          <input name="servings" type="number" min="1">
-        </div>
-        <div class="field">
-          <label>卡路里</label>
-          <input name="calories" type="number" min="0">
-        </div>
-      </div>
-      <label>上傳圖片（儲存至本機 images/ 資料夾）</label>
-      <input id="imageFile" name="image_file" type="file" accept="image/*">
-      <div id="imagePreview" style="margin:8px 0;"></div>
-      <div class="drawer-actions">
-        <button id="saveRecipe" class="btn">儲存</button>
-        <button id="deleteRecipe" class="btn btn-danger">刪除</button>
-      </div>
-    </form>
-  </aside>
--->
-  <!-- 你的腳本 -->
-  <script src="data.js" defer></script>
-  <script src="app.js" defer></script>
-
-  <script>
-    (function(){
-      function registerSW(){
-        if ("serviceWorker" in navigator) {
-          navigator.serviceWorker.register("./sw.js").catch(console.error);
-        }
+    $exportBtn.addEventListener('click',async()=>{
+      let msg='';let total=0;
+      for(const d of DATA){const q=Number(state.qty[d.id]||0);if(q>0){const sub=q*d.price;msg+=`${d.item} x ${q} = $${fmt.format(sub)}\n`;total+=sub;}}
+      if(!msg){alert('尚未選購任何品項。');return;}
+      msg+=`\n合計：$${fmt.format(total)}`;
+      alert(msg);
+      try{
+        await navigator.clipboard.writeText(msg);
+        showToast('已複製到剪貼簿，可直接貼到 LINE');
+      }catch(err){
+        console.warn('Clipboard failed:', err);
+        showToast('無法自動複製，請改為手動複製', {error:true, duration:2600});
       }
-      function onceReady(fn){ if (document.readyState !== "loading") fn(); else document.addEventListener("DOMContentLoaded", fn); }
-      onceReady(registerSW);
-    })();
-  </script>
-</body>
+    });
+
+    render();
+  </script></body>
 </html>
