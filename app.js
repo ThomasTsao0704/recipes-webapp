@@ -1,7 +1,13 @@
 class RecipeApp {
+
+  // 統一字串標準化：去空白 + 小寫
+  norm(v) {
+    return (v == null ? "" : String(v)).trim().toLowerCase();
+  }
+
   constructor() {
     this.recipes = [];
-    this.filteredrecipes = [];
+    this.filteredRecipes = [];
     this.currentView = 'grid';
     this.editTargetId = null;
 
@@ -50,7 +56,7 @@ class RecipeApp {
   async afterFolderPicked() {
     await this.ensureCSVExists();     // 若沒有 recipes.csv 就建立
     await this.loadCSVFromLocal();    // 讀入本地 CSV
-    this.filteredrecipes = [...this.recipes];
+    this.filteredRecipes = [...this.recipes];
     this.updateCategories();
     this.render();
   }
@@ -93,24 +99,47 @@ class RecipeApp {
     return 'R' + String(this.recipes.length + idx + 1).padStart(3, '0');
   }
 
-  // ====== UI 綁定 ======
+
   setupEventListeners() {
     const searchInput = document.getElementById('searchInput');
     const categorySelect = document.getElementById('categorySelect');
     const viewButtons = document.querySelectorAll('.view-btn');
 
-    searchInput?.addEventListener('input', () => this.filterrecipes());
-    categorySelect?.addEventListener('change', () => this.filterrecipes());
+    // 1) 搜尋輸入：同時監聽 input + compositionend（解決中文輸入法組字不觸發）
+    if (searchInput) {
+      const onSearch = () => this.filterRecipes();
+      searchInput.addEventListener('input', onSearch);
+      searchInput.addEventListener('compositionend', onSearch);
+    } else {
+      console.warn('[RecipeApp] 找不到 #searchInput，請確認 HTML id 是否正確');
+    }
 
+    // 2) 類別篩選
+    if (categorySelect) {
+      categorySelect.addEventListener('change', () => this.filterRecipes());
+    } else {
+      console.warn('[RecipeApp] 找不到 #categorySelect');
+    }
+
+    // 3) 檢視切換
     viewButtons.forEach((btn) => {
       btn.addEventListener('click', (e) => {
         viewButtons.forEach((b) => b.classList.remove('active'));
-        e.target.classList.add('active');
-        this.currentView = e.target.dataset.view;
+        e.currentTarget.classList.add('active');
+        this.currentView = e.currentTarget.dataset.view;
         this.updateViewClass();
       });
     });
+
+    // 4) 離開頁面釋放所有 blob URL（維持你原本行為）
+    window.addEventListener('beforeunload', () => {
+      if (this.imageURLCache) {
+        for (const url of this.imageURLCache.values()) URL.revokeObjectURL(url);
+        this.imageURLCache.clear();
+      }
+    });
   }
+
 
   setupNavTabs() {
     this.navButtons.forEach((btn) => {
@@ -417,8 +446,13 @@ class RecipeApp {
 
   updateCategories() {
     const categorySelect = document.getElementById('categorySelect');
-    const categories = [...new Set(this.recipes.map((r) => r.category).filter(Boolean))].sort();
-    categorySelect.querySelectorAll('option:not(:first-child)').forEach((o) => o.remove());
+    const categories = [...new Set(
+      this.recipes.map(r => (r.category || '').trim()).filter(Boolean)
+    )].sort();
+
+    // 清理舊選項（保留第一個「全部」）
+    categorySelect.querySelectorAll('option:not(:first-child)').forEach(o => o.remove());
+
     categories.forEach((category) => {
       const option = document.createElement('option');
       option.value = category;
@@ -428,41 +462,35 @@ class RecipeApp {
   }
 
   filterRecipes() {
-    const ui = this.captureUIState();
-    const searchTerm = (document.getElementById('searchInput').value || '').toLowerCase();
-    const selectedCategory = document.getElementById('categorySelect').value;
-    this.filteredRecipes = this.recipes.filter(/* ... */);
-    this.render();
-    this.restoreUIState(ui);
-    this.restoreUIState(ui);
-  }
+    // 可選：保留 UI 狀態避免重繪時蓋掉輸入中內容
+    const ui = this.captureUIState ? this.captureUIState() : null;
 
-  captureUIState() {
-    return {
-      scrollY: window.scrollY,
-      search: (document.getElementById('searchInput')?.value || ''),
-      category: (document.getElementById('categorySelect')?.value || ''),
-      view: this.currentView
-    };
-  }
-  restoreUIState(state) {
-    if (!state) return;
-    const s = document.getElementById('searchInput');
-    const c = document.getElementById('categorySelect');
-    if (s && s.value !== state.search) s.value = state.search;
-    if (c && c.value !== state.category) c.value = state.category;
-    if (this.currentView !== state.view) {
-      this.currentView = state.view;
-      this.updateViewClass();
-    }
-    // 還原滾動位置（用 rAF 確保在重繪後）
-    requestAnimationFrame(() => window.scrollTo({ top: state.scrollY, left: 0, behavior: 'auto' }));
-  }
-  async withStableUI(updaterFn) {
-    const ui = this.captureUIState();
-    await Promise.resolve(updaterFn?.());
+    const searchTerm = this.norm(document.getElementById('searchInput')?.value || '');
+    const selectedCategoryRaw = document.getElementById('categorySelect')?.value || '';
+    const selectedCategory = (selectedCategoryRaw || '').trim(); // 分類用嚴格等號，但先 trim
+
+    if (!Array.isArray(this.recipes)) this.recipes = [];
+
+    this.filteredRecipes = this.recipes.filter((r) => {
+      const title = this.norm(r?.title);
+      const tags = this.norm(r?.tags);
+      const ingredients = this.norm(r?.ingredients);
+      const category = (r?.category || '').trim();
+
+      const matchesSearch =
+        !searchTerm ||
+        title.includes(searchTerm) ||
+        tags.includes(searchTerm) ||
+        ingredients.includes(searchTerm);
+
+      const matchesCategory = !selectedCategory || category === selectedCategory;
+
+      return matchesSearch && matchesCategory;
+    });
+
     this.render();
-    this.restoreUIState(ui);
+
+    if (ui && this.restoreUIState) this.restoreUIState(ui);
   }
 
   updateViewClass() {
@@ -478,7 +506,7 @@ class RecipeApp {
   updateStats() {
     const stats = document.getElementById('stats');
     const total = this.recipes.length;
-    const showing = this.filteredrecipes.length;
+    const showing = this.filteredRecipes.length;
     stats.textContent = `顯示 ${showing} / ${total} 道食譜`;
   }
 
@@ -507,7 +535,7 @@ class RecipeApp {
 
   renderrecipes() {
     const container = document.getElementById('recipesContainer');
-    if (this.filteredrecipes.length === 0) {
+    if (this.filteredRecipes.length === 0) {
       container.innerHTML = `
         <div class="empty-state">
           <div class="icon">🔍</div>
@@ -559,7 +587,7 @@ class RecipeApp {
 
     // 異步補圖（只能在已選資料夾後）
     if (__imagesDirHandle) {
-      this.filteredrecipes.forEach(async (recipe) => {
+      this.filteredRecipes.forEach(async (recipe) => {
         if (!recipe.image_url) return;
         const imgEl = container.querySelector(`img[data-img="${recipe.id}"]`);
         if (!imgEl) return;
@@ -688,4 +716,4 @@ document.addEventListener("change", (ev) => {
 
 // 暴露全域
 window.recipes = app.recipes;
-window.filteredrecipes = app.filteredrecipes;
+window.filteredRecipes = app.filteredRecipes;
