@@ -113,18 +113,18 @@ textarea:focus {
     margin-bottom: 25px;
     font-size: 0.9rem;
 }
-
+/* 總容器：多欄網格 */
 .recipes-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    gap: 20px;
-    transition: all 0.3s ease;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
 }
 
+/* 列表模式：固定單欄 */
 .recipes-list {
-    display: flex;
-    flex-direction: column;
-    gap: 15px;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 16px;
 }
 
 .recipe-card {
@@ -639,8 +639,12 @@ summary:hover {
     }
 }
 
+/* 響應式 — 僅在手機才鎖定單欄 */
 /* 響應式設計 */
 @media (max-width: 768px) {
+    #recipesContainer.recipes-grid {
+        grid-template-columns: 1fr !important; /* 手機強制單欄 */
+    }
     .filter-row {
         grid-template-columns: 1fr;
         gap: 12px;
