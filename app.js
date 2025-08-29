@@ -10,7 +10,7 @@ class RecipeApp {
     this.filteredRecipes = [];
     this.currentView = 'grid';
     this.editTargetId = null;
-
+    this.updateViewClass?.();  // ← 初始就套上 grid
     this.pages = {
       browse: document.getElementById('browsePage'),
       add: document.getElementById('addPage'),
@@ -39,6 +39,33 @@ class RecipeApp {
     });
   }
 
+  // ---------- 穩定 UI：避免重繪後「跳版」 ----------
+  captureUIState() {
+    return {
+      scrollY: window.scrollY,
+      search: document.getElementById('searchInput')?.value || '',
+      category: document.getElementById('categorySelect')?.value || '',
+      view: this.currentView
+    };
+  }
+  restoreUIState(state) {
+    if (!state) return;
+    const s = document.getElementById('searchInput');
+    const c = document.getElementById('categorySelect');
+    if (s && s.value !== state.search) s.value = state.search;
+    if (c && c.value !== state.category) c.value = state.category;
+    this.currentView = state.view || 'grid';
+    this.updateViewClass();   // ← 一律重設容器 class，避免漏跑
+    requestAnimationFrame(() => window.scrollTo({ top: state.scrollY, left: 0, behavior: 'auto' }));
+  }
+  async withStableUI(updaterFn) {
+    const ui = this.captureUIState();
+    await Promise.resolve(updaterFn?.());
+    this.render();
+    this.restoreUIState(ui);
+  }
+  // ---------------------------------------------------
+
   renderEmptyWithHint() {
     const stats = document.getElementById('stats');
     stats.textContent = '請先按「選擇資料夾」以載入本地 recipes.csv';
@@ -65,9 +92,10 @@ class RecipeApp {
     try {
       await __recipesDirHandle.getFileHandle('recipes.csv'); // 存在就好
     } catch {
-      // 不存在 → 建立 with header
-      const headers = ["id", "title", "category", "tags", "ingredients", "steps", "prep_minutes", "cook_minutes", "servings", "calories", "image_url"];
-      const csvText = headers.join(",") + "\n";
+      // 不存在 → 建立 with header（含 BOM + CRLF）
+      const headers = ["id","title","category","tags","ingredients","steps","prep_minutes","cook_minutes","servings","calories","image_url"];
+      const bom = "\uFEFF";
+      const csvText = bom + headers.join(",") + "\r\n";
       const fh = await __recipesDirHandle.getFileHandle("recipes.csv", { create: true });
       await writeFile(fh, new Blob([csvText], { type: "text/csv;charset=utf-8" }));
     }
@@ -99,13 +127,12 @@ class RecipeApp {
     return 'R' + String(this.recipes.length + idx + 1).padStart(3, '0');
   }
 
-
   setupEventListeners() {
     const searchInput = document.getElementById('searchInput');
     const categorySelect = document.getElementById('categorySelect');
     const viewButtons = document.querySelectorAll('.view-btn');
 
-    // 1) 搜尋輸入：同時監聽 input + compositionend（解決中文輸入法組字不觸發）
+    // 搜尋輸入：input + compositionend（中文輸入法）
     if (searchInput) {
       const onSearch = () => this.filterRecipes();
       searchInput.addEventListener('input', onSearch);
@@ -114,14 +141,14 @@ class RecipeApp {
       console.warn('[RecipeApp] 找不到 #searchInput，請確認 HTML id 是否正確');
     }
 
-    // 2) 類別篩選
+    // 類別篩選
     if (categorySelect) {
       categorySelect.addEventListener('change', () => this.filterRecipes());
     } else {
       console.warn('[RecipeApp] 找不到 #categorySelect');
     }
 
-    // 3) 檢視切換
+    // 檢視切換
     viewButtons.forEach((btn) => {
       btn.addEventListener('click', (e) => {
         viewButtons.forEach((b) => b.classList.remove('active'));
@@ -130,16 +157,7 @@ class RecipeApp {
         this.updateViewClass();
       });
     });
-
-    // 4) 離開頁面釋放所有 blob URL（維持你原本行為）
-    window.addEventListener('beforeunload', () => {
-      if (this.imageURLCache) {
-        for (const url of this.imageURLCache.values()) URL.revokeObjectURL(url);
-        this.imageURLCache.clear();
-      }
-    });
   }
-
 
   setupNavTabs() {
     this.navButtons.forEach((btn) => {
@@ -218,16 +236,18 @@ class RecipeApp {
         calories: calories || '',
         image_url: imageUrl,
       };
+
       await this.withStableUI(() => {
         this.recipes.unshift(newRecipe);
         this.filteredRecipes = this.recipes;
-      });// 立即寫回本地 CSV
+      });
 
-      // 內含 render
+      // 立刻寫回本地 CSV
+      await writeCSVToLocal();
 
       this.successMessage.style.display = 'block';
       const browseBtn = this.navButtons.find((b) => b.dataset.page === 'browse');
-      browseBtn.click();
+      browseBtn?.click();
       this.clearForm();
     });
 
@@ -320,6 +340,7 @@ class RecipeApp {
     preview.innerHTML = '';
     if (recipe.image_url) {
       this.resolveImageURL(recipe.image_url).then(src => {
+        if (!src) return;
         const img = document.createElement('img');
         img.src = src;
         Object.assign(img.style, { maxWidth: '100%', borderRadius: '8px', marginBottom: '8px' });
@@ -370,9 +391,9 @@ class RecipeApp {
     };
 
     await this.withStableUI(() => {
-      // ...更新資料邏輯（維持你現有那段）...
-      this.filteredRecipes = this.recipes; // 直接更新快取，不再另觸發 filterRecipes() 的 render
+      this.filteredRecipes = this.recipes; // 不再呼叫 filterRecipes()，避免二次重繪
     });
+
     const drawer = document.getElementById('editDrawer');
     drawer.classList.add('hidden');
     drawer.setAttribute('aria-hidden', 'true');
@@ -446,6 +467,7 @@ class RecipeApp {
 
   updateCategories() {
     const categorySelect = document.getElementById('categorySelect');
+    if (!categorySelect) return;
     const categories = [...new Set(
       this.recipes.map(r => (r.category || '').trim()).filter(Boolean)
     )].sort();
@@ -462,8 +484,7 @@ class RecipeApp {
   }
 
   filterRecipes() {
-    // 可選：保留 UI 狀態避免重繪時蓋掉輸入中內容
-    const ui = this.captureUIState ? this.captureUIState() : null;
+    const ui = this.captureUIState();
 
     const searchTerm = this.norm(document.getElementById('searchInput')?.value || '');
     const selectedCategoryRaw = document.getElementById('categorySelect')?.value || '';
@@ -489,8 +510,7 @@ class RecipeApp {
     });
 
     this.render();
-
-    if (ui && this.restoreUIState) this.restoreUIState(ui);
+    this.restoreUIState(ui);
   }
 
   updateViewClass() {
@@ -500,7 +520,8 @@ class RecipeApp {
 
   render() {
     this.updateStats();
-    this.renderrecipes();
+    this.renderRecipes();
+    this.updateViewClass();
   }
 
   updateStats() {
@@ -515,7 +536,6 @@ class RecipeApp {
     if (!value) return '';
     const v = String(value).trim();
     if (/^(data:|blob:)/i.test(v)) return v; // 仍允許 data/blob
-
     if (!__imagesDirHandle) return ''; // 尚未選資料夾 → 先不顯示
 
     const name = v.replace(/^images\//i, '');
@@ -533,7 +553,7 @@ class RecipeApp {
     }
   }
 
-  renderrecipes() {
+  renderRecipes() {
     const container = document.getElementById('recipesContainer');
     if (this.filteredRecipes.length === 0) {
       container.innerHTML = `
@@ -545,7 +565,7 @@ class RecipeApp {
       return;
     }
 
-    container.innerHTML = this.filteredrecipes.map((recipe) => {
+    container.innerHTML = this.filteredRecipes.map((recipe) => {
       const totalMin = (parseInt(recipe.prep_minutes || 0, 10) || 0) + (parseInt(recipe.cook_minutes || 0, 10) || 0);
       const tagsHtml = recipe.tags
         ? recipe.tags.split(';').map((tag) => `<span class="tag">${tag.trim()}</span>`).join('')
@@ -611,7 +631,7 @@ window.app = app;
 let __recipesDirHandle = null;
 let __imagesDirHandle = null;
 
-async function pickrecipesFolder() {
+async function pickRecipesFolder() {
   if (!window.showDirectoryPicker) { alert("你的瀏覽器不支援選擇資料夾。請改用 Chrome/Edge。"); return; }
   try {
     __recipesDirHandle = await window.showDirectoryPicker({ mode: "readwrite" });
@@ -643,7 +663,7 @@ async function saveImageToLocalFolder(file, recipeId) {
 
 async function writeCSVToLocal() {
   if (!__recipesDirHandle) { alert("尚未選擇資料夾。請先按「選擇資料夾」。"); return; }
-  const headers = ["id", "title", "category", "tags", "ingredients", "steps", "prep_minutes", "cook_minutes", "servings", "calories", "image_url"];
+  const headers = ["id","title","category","tags","ingredients","steps","prep_minutes","cook_minutes","servings","calories","image_url"];
   const esc = (s) => {
     if (s == null) return "";
     s = String(s);
@@ -667,10 +687,10 @@ async function writeCSVToLocal() {
 document.addEventListener("click", (ev) => {
   const t = ev.target;
   if (!t) return;
-  if (t.id === "btnPickFolder") pickrecipesFolder();
+  if (t.id === "btnPickFolder") pickRecipesFolder();
   if (t.id === "btnWriteCSV") writeCSVToLocal();
   if (t.id === "btnExport") {
-    const headers = ["id", "title", "category", "tags", "ingredients", "steps", "prep_minutes", "cook_minutes", "servings", "calories", "image_url"];
+    const headers = ["id","title","category","tags","ingredients","steps","prep_minutes","cook_minutes","servings","calories","image_url"];
     const esc = (s) => {
       if (s == null) return "";
       s = String(s);
