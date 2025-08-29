@@ -1,651 +1,691 @@
-// app.js — IndexedDB 版（手機單機可用）
-// 功能總攬：
-// - 主要資料來源：IndexedDB（RecipesDB / store: recipes）
-// - 匯入/匯出：CSV（備份/搬家用）
-// - 登入後才可看到 ✏️ 編輯（body.logged-in）
-// - Modal：管理者登入 / 編輯（Esc 可關閉；開啟時鎖背景捲動）
-// - 排序：分類→名稱（預設，空分類最後）、名稱、總時長、熱量、份量（支援反向 & 穩定排序）
+class RecipeApp {
+  constructor() {
+    this.recipes = [];
+    this.filteredrecipes = [];
+    this.currentView = 'grid';
+    this.editTargetId = null;
 
-(() => {
-  const $  = (sel, root = document) => root.querySelector(sel);
-  const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
+    this.pages = {
+      browse: document.getElementById('browsePage'),
+      add: document.getElementById('addPage'),
+    };
+    this.navButtons = Array.from(document.querySelectorAll('.nav-btn'));
+    this.successMessage = null;
 
-  // ====== 狀態 ======
-  const state = {
-    recipes: [],                 // 畫面要顯示的資料（從 IndexedDB 載入）
-    currentEditId: null,         // 目前編輯中的 id
-    loggedIn: false,             // 登入狀態
-    sort: { key: "cat_title", reverse: false },
-    storageMode: "idb"           // 統一走 IndexedDB；下方仍保留 CSV 匯入/出
-  };
+    // 圖片 blob:ObjectURL 快取
+    this.imageURLCache = new Map();
 
-  // ====== 能力偵測 ======
-  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-  const hasFSAccess = !!(window.showDirectoryPicker && window.isSecureContext); // 只在桌面 Chrome/Edge 有用
-
-  // ====== DOM ======
-  const el = {
-    stats: $("#stats"),
-    recipesContainer: $("#recipesContainer"),
-    categorySelect: $("#categorySelect"),
-    searchInput: $("#searchInput"),
-    sortSelect: $("#sortSelect"),
-    sortReverse: $("#sortReverse"),
-
-    addForm: $("#addRecipeForm"),
-    successMessage: $("#successMessage"),
-    tagsInput: $("#tagsInput"),
-    tagsDisplay: $("#tagsDisplay"),
-    ingredientsList: $("#ingredientsList"),
-    stepsList: $("#stepsList"),
-
-    btnPickFolder: $("#btnPickFolder"),
-    btnWriteCSV: $("#btnWriteCSV"),
-    btnExport: $("#btnExport"),
-    btnImport: $("#btnImport"),
-    fileInput: $("#fileInput"),
-    navBtns: $$(".nav-btn"),
-    pages: { browse: $("#browsePage"), add: $("#addPage") },
-    viewBtns: $$(".view-btn"),
-
-    // 登入
-    btnLogin: $("#btnLogin"),
-    btnLogout: $("#btnLogout"),
-    loginModal: $("#loginModal"),
-    loginForm: $("#loginForm"),
-
-    // 編輯 Modal
-    editBackdrop: $("#editBackdrop"),
-    editModal: $("#editModal"),
-    editForm: $("#editForm")
-  };
-
-  // ====== CSV 欄位定義（沿用 data.js 的 SCHEMA） ======
-  const CSV_FILE = "recipes.csv";
-  const FIELDS = window.CSV_SCHEMA || [
-    "id","title","category","tags","ingredients","steps",
-    "prep_minutes","cook_minutes","servings","calories","image_url"
-  ];
-
-  // ====== 本地化排序（中英文自然排序） ======
-  const collator = new Intl.Collator("zh-Hant", { sensitivity: "base", numeric: true });
-
-  // ====== IndexedDB 基礎 ======
-  const IDB = {
-    db: null,
-    NAME: "RecipesDB",
-    STORE: "recipes",
-
-    async open(){
-      if (this.db) return this.db;
-      this.db = await new Promise((resolve, reject) => {
-        const req = indexedDB.open(this.NAME, 1);
-        req.onerror = () => reject(req.error || new Error("無法開啟資料庫"));
-        req.onupgradeneeded = (e) => {
-          const db = e.target.result;
-          if (!db.objectStoreNames.contains(this.STORE)) {
-            // 使用字串型 id（沿用 CSV 的 id 規則）；若沒有就自動產生
-            db.createObjectStore(this.STORE, { keyPath: "id" });
-          }
-        };
-        req.onsuccess = () => resolve(req.result);
-      });
-      return this.db;
-    },
-
-    async getAll(){
-      const db = await this.open();
-      return new Promise((resolve, reject) => {
-        const tx = db.transaction(this.STORE, "readonly");
-        const st = tx.objectStore(this.STORE);
-        const req = st.getAll();
-        req.onsuccess = () => resolve(req.result || []);
-        req.onerror = () => reject(req.error || new Error("讀取失敗"));
-      });
-    },
-
-    async put(recipe){ // 新增或更新
-      const db = await this.open();
-      if (!recipe.id) recipe.id = genId();
-      return new Promise((resolve, reject) => {
-        const tx = db.transaction(this.STORE, "readwrite");
-        const st = tx.objectStore(this.STORE);
-        const req = st.put(recipe);
-        req.onsuccess = () => resolve(recipe.id);
-        req.onerror = () => reject(req.error || new Error("寫入失敗"));
-      });
-    },
-
-    async delete(id){
-      const db = await this.open();
-      return new Promise((resolve, reject) => {
-        const tx = db.transaction(this.STORE, "readwrite");
-        const st = tx.objectStore(this.STORE);
-        const req = st.delete(id);
-        req.onsuccess = () => resolve(true);
-        req.onerror = () => reject(req.error || new Error("刪除失敗"));
-      });
-    },
-
-    async bulkReplace(list){ // 匯入 CSV 後整批覆蓋
-      const db = await this.open();
-      await new Promise((resolve, reject) => {
-        const tx = db.transaction(this.STORE, "readwrite");
-        const st = tx.objectStore(this.STORE);
-        const clearReq = st.clear();
-        clearReq.onsuccess = () => resolve(true);
-        clearReq.onerror = () => reject(clearReq.error);
-      });
-      for (const r of list) await this.put(r);
-      return true;
-    }
-  };
-
-  // ====== 啟動 ======
-  document.addEventListener("DOMContentLoaded", init);
-
-  async function init(){
-    bindNav();
-    bindViewToggle();
-    bindTopbarButtons();
-    bindForm();
-    bindEditModal();
-    bindLogin();
-    guardMobileButtons();
-
-    await loadFromIDB();
-    if (!state.recipes.length) await tryLoadInitialFromNetworkThenSeedIDB();
-
-    renderAll();
-    flashStats();
-
-    // PWA 的 service worker 在 index.html 會註冊，這裡不重覆
+    this.init();
   }
 
-  // 行動裝置：停用「選擇資料夾/寫入 CSV」避免權限錯誤
-  function guardMobileButtons(){
-    if (isMobile || !hasFSAccess) {
-      el.btnPickFolder?.setAttribute("disabled", "true");
-      el.btnWriteCSV?.setAttribute("disabled", "true");
-      el.btnPickFolder?.classList.add("disabled");
-      el.btnWriteCSV?.classList.add("disabled");
-      el.btnPickFolder?.setAttribute("title", "行動瀏覽器不支援資料夾授權，請改用『匯出 CSV』備份");
-      el.btnWriteCSV?.setAttribute("title", "行動瀏覽器不支援直接寫檔，請改用『匯出 CSV』備份");
-    }
+  async init() {
+    this.setupEventListeners();
+    this.setupNavTabs();
+    this.setupAddForm();
+    this.setupEditDrawer();
+    // 離線版：一開始不載資料，等使用者選資料夾
+    this.renderEmptyWithHint();
+
+    // 釋放 blob URL
+    window.addEventListener('beforeunload', () => {
+      for (const url of this.imageURLCache.values()) URL.revokeObjectURL(url);
+      this.imageURLCache.clear();
+    });
   }
 
-  // ====== 從 IndexedDB 載入 ======
-  async function loadFromIDB(){
+  renderEmptyWithHint() {
+    const stats = document.getElementById('stats');
+    stats.textContent = '請先按「選擇資料夾」以載入本地 recipes.csv';
+
+    const container = document.getElementById('recipesContainer');
+    container.innerHTML = `
+      <div class="empty-state">
+        <div class="icon">📂</div>
+        <h3>尚未選擇資料夾</h3>
+        <p>請點上方「選擇資料夾」，本 App 將讀取該資料夾中的 <code>recipes.csv</code> 與 <code>images/</code> 圖片。</p>
+      </div>`;
+  }
+
+  // ====== File System Access：資料夾選擇與 CSV 載入 ======
+  async afterFolderPicked() {
+    await this.ensureCSVExists();     // 若沒有 recipes.csv 就建立
+    await this.loadCSVFromLocal();    // 讀入本地 CSV
+    this.filteredrecipes = [...this.recipes];
+    this.updateCategories();
+    this.render();
+  }
+
+  async ensureCSVExists() {
     try {
-      const rows = await IDB.getAll();
-      state.recipes = normalizeRows(rows);
-    } catch (e) {
-      console.warn("讀取 IndexedDB 失敗：", e);
-      state.recipes = [];
+      await __recipesDirHandle.getFileHandle('recipes.csv'); // 存在就好
+    } catch {
+      // 不存在 → 建立 with header
+      const headers = ["id", "title", "category", "tags", "ingredients", "steps", "prep_minutes", "cook_minutes", "servings", "calories", "image_url"];
+      const csvText = headers.join(",") + "\n";
+      const fh = await __recipesDirHandle.getFileHandle("recipes.csv", { create: true });
+      await writeFile(fh, new Blob([csvText], { type: "text/csv;charset=utf-8" }));
     }
   }
 
-  // 首次使用：若同站有 recipes.csv，讀一次並寫進 IDB（可選）
-  async function tryLoadInitialFromNetworkThenSeedIDB(){
+  async loadCSVFromLocal() {
     try {
-      const resp = await fetch(CSV_FILE, { cache: "no-store" });
-      if (!resp.ok) return;
-      const text = await resp.text();
-      const { rows } = await window.csvTextToArray(text);
-      const normalized = normalizeRows(rows);
-      if (normalized.length){
-        await IDB.bulkReplace(normalized);
-        state.recipes = normalized;
-        flashStats("已從預設 recipes.csv 載入並保存到本機");
+      const fh = await __recipesDirHandle.getFileHandle('recipes.csv');
+      const file = await fh.getFile();
+      const text = await file.text();
+      const parsed = Papa.parse(text, { header: true, skipEmptyLines: true });
+      // 確保每筆都有 id（若空檔就給新 id）
+      this.recipes = (parsed.data || []).map((x, i) => ({
+        ...x,
+        id: x.id && String(x.id).trim() ? x.id : this.makeId(i)
+      }));
+      if (!this.recipes.length) {
+        this.recipes = []; // 空表
       }
     } catch (e) {
-      // 沒檔就算了
+      console.error('讀取本地 recipes.csv 失敗：', e);
+      alert('讀取本地 recipes.csv 失敗，請確認權限或檔案是否存在。');
+      this.recipes = [];
     }
   }
 
-  /** 欄位正規化 */
-  function normalizeRows(rows){
-    return rows.map(r => ({
-      id: r.id && String(r.id).trim() ? String(r.id).trim() : genId(),
-      title: r.title ?? "",
-      category: r.category ?? "",
-      tags: r.tags ?? "",
-      ingredients: r.ingredients ?? "",
-      steps: r.steps ?? "",
-      prep_minutes: toNumOrEmpty(r.prep_minutes),
-      cook_minutes: toNumOrEmpty(r.cook_minutes),
-      servings: toNumOrEmpty(r.servings),
-      calories: toNumOrEmpty(r.calories),
-      image_url: r.image_url ?? ""
-    }));
+  makeId(idx = 0) {
+    // 以目前陣列長度 + idx 生成
+    return 'R' + String(this.recipes.length + idx + 1).padStart(3, '0');
   }
-  function toNumOrEmpty(v){ const n = Number(v); return Number.isFinite(n) ? n : ""; }
 
-  // ====== 導覽與視圖 ======
-  function bindNav(){
-    el.navBtns.forEach(btn => {
-      btn.addEventListener("click", () => {
-        el.navBtns.forEach(b => b.classList.remove("active"));
-        btn.classList.add("active");
-        const page = btn.dataset.page;
-        $$(".page").forEach(p => p.classList.remove("active"));
-        el.pages[page].classList.add("active");
+  // ====== UI 綁定 ======
+  setupEventListeners() {
+    const searchInput = document.getElementById('searchInput');
+    const categorySelect = document.getElementById('categorySelect');
+    const viewButtons = document.querySelectorAll('.view-btn');
+
+    searchInput?.addEventListener('input', () => this.filterrecipes());
+    categorySelect?.addEventListener('change', () => this.filterrecipes());
+
+    viewButtons.forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        viewButtons.forEach((b) => b.classList.remove('active'));
+        e.target.classList.add('active');
+        this.currentView = e.target.dataset.view;
+        this.updateViewClass();
       });
     });
   }
 
-  function bindViewToggle(){
-    el.viewBtns.forEach(btn => {
-      btn.addEventListener("click", () => {
-        el.viewBtns.forEach(b => b.classList.remove("active"));
-        btn.classList.add("active");
-        const v = btn.dataset.view;
-        if (v === "grid") {
-          el.recipesContainer.classList.remove("recipes-list");
-          el.recipesContainer.classList.add("recipes-grid");
-        } else {
-          el.recipesContainer.classList.remove("recipes-grid");
-          el.recipesContainer.classList.add("recipes-list");
+  setupNavTabs() {
+    this.navButtons.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        this.navButtons.forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+
+        const pageKey = btn.dataset.page; // "browse" | "add"
+        Object.values(this.pages).forEach((p) => p.classList.remove('active'));
+        if (this.pages[pageKey]) this.pages[pageKey].classList.add('active');
+
+        if (pageKey === 'add' && this.successMessage) {
+          this.successMessage.style.display = 'none';
         }
       });
     });
   }
 
-  // ====== Topbar 事件 ======
-  function bindTopbarButtons(){
-    // 桌面專用：選擇資料夾 / 寫入 CSV（行動會停用）
-    el.btnPickFolder?.addEventListener("click", () => {
-      alert("此版本以 IndexedDB 為主；在行動裝置或不支援的瀏覽器，請改用『匯出 CSV』備份。");
+  setupAddForm() {
+    const form = document.getElementById('addRecipeForm');
+    this.successMessage = document.getElementById('successMessage');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!__recipesDirHandle || !__imagesDirHandle) {
+        alert('尚未選擇資料夾，請先按「選擇資料夾」。');
+        return;
+      }
+
+      const title = document.getElementById('recipeTitle').value.trim();
+      const category = document.getElementById('recipeCategory').value.trim();
+      const servings = document.getElementById('recipeServings').value.trim();
+      const prep = document.getElementById('prepTime').value.trim();
+      const cook = document.getElementById('cookTime').value.trim();
+      const calories = document.getElementById('calories').value.trim();
+
+      const tagsInput = document.getElementById('tagsInput').value.trim();
+      const chips = Array.from(document.querySelectorAll('#tagsDisplay .tag-chip')).map((x) => x.dataset.tag);
+      const tags = [...chips, ...(tagsInput ? [tagsInput] : [])].join(';');
+
+      const ingredients = Array.from(document.querySelectorAll('#ingredientsList .ingredient-item input'))
+        .map((i) => i.value.trim()).filter(Boolean).join('|');
+
+      const steps = Array.from(document.querySelectorAll('#stepsList .step-item input'))
+        .map((i) => i.value.trim()).filter(Boolean).join('>');
+
+      if (!title) { alert('請輸入食譜名稱'); return; }
+      if (!ingredients) { alert('請至少輸入一項食材'); return; }
+      if (!steps) { alert('請至少輸入一個步驟'); return; }
+
+      const newId = this.makeId();
+
+      // 僅本地：上傳圖片 → images/ 產生檔名 → CSV 存相對路徑
+      let imageUrl = '';
+      const imageFile = document.getElementById('recipeImageFile').files[0];
+      if (imageFile) {
+        try {
+          const result = await saveImageToLocalFolder(imageFile, newId);
+          if (result.ok) imageUrl = result.relativePath;
+        } catch (err) {
+          console.error('圖片上傳錯誤:', err);
+          alert('圖片上傳失敗；你仍可稍後在編輯中補上圖片。');
+        }
+      }
+
+      const newRecipe = {
+        id: newId,
+        title,
+        category,
+        tags,
+        ingredients,
+        steps,
+        prep_minutes: prep || '0',
+        cook_minutes: cook || '0',
+        servings: servings || '',
+        calories: calories || '',
+        image_url: imageUrl,
+      };
+      await this.withStableUI(() => {
+        this.recipes.unshift(newRecipe);
+        this.filteredRecipes = this.recipes;
+      });// 立即寫回本地 CSV
+
+      // 內含 render
+
+      this.successMessage.style.display = 'block';
+      const browseBtn = this.navButtons.find((b) => b.dataset.page === 'browse');
+      browseBtn.click();
+      this.clearForm();
     });
-    el.btnWriteCSV?.addEventListener("click", () => {
-      alert("此版本以 IndexedDB 為主；請使用『匯出 CSV』下載備份檔。");
-    });
 
-    // 匯出 / 匯入（跨平台可用）
-    el.btnExport?.addEventListener("click", onExportCSV);
-    el.btnImport?.addEventListener("click", () => el.fileInput.click());
-    el.fileInput?.addEventListener("change", onImportCSV);
-
-    // 搜尋 / 分類 / 排序
-    el.searchInput?.addEventListener("input", renderAll);
-    el.categorySelect?.addEventListener("change", renderAll);
-    el.sortSelect?.addEventListener("change", () => { state.sort.key = el.sortSelect.value; renderAll(); });
-    el.sortReverse?.addEventListener("click", () => { state.sort.reverse = !state.sort.reverse; renderAll(); });
-  }
-
-  // ====== 新增表單 ======
-  function bindForm(){
-    // 標籤輸入：Enter 轉 chip
-    el.tagsInput?.addEventListener("keydown", e => {
-      if (e.key === "Enter"){
+    // 標籤 chip
+    const tagsInput = document.getElementById('tagsInput');
+    const tagsDisplay = document.getElementById('tagsDisplay');
+    tagsInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && tagsInput.value.trim()) {
         e.preventDefault();
-        const v = el.tagsInput.value.trim();
-        if (!v) return;
-        addTagChip(v, el.tagsDisplay);
-        el.tagsInput.value = "";
+        const tag = tagsInput.value.trim();
+        const chip = document.createElement('span');
+        chip.className = 'tag-chip';
+        chip.dataset.tag = tag;
+        chip.textContent = `#${tag} ×`;
+        chip.addEventListener('click', () => chip.remove());
+        tagsDisplay.appendChild(chip);
+        tagsInput.value = '';
       }
     });
 
-    el.addForm?.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const rec = readFormToRecipe();
-      await IDB.put(rec);
-      await loadFromIDB();
-      renderAll();
-      showSuccess("✅ 食譜新增成功（已存到本機）！");
-      clearForm();
+    // 新增頁：圖片預覽
+    const addImageInput = document.getElementById('recipeImageFile');
+    const addImagePreview = document.getElementById('addImagePreview');
+    addImageInput.addEventListener('change', (e) => {
+      addImagePreview.innerHTML = '';
+      const file = e.target.files[0];
+      if (file) {
+        const url = URL.createObjectURL(file);
+        const img = document.createElement('img');
+        img.src = url;
+        Object.assign(img.style, {
+          maxWidth: '200px', maxHeight: '150px', borderRadius: '8px', objectFit: 'cover'
+        });
+        addImagePreview.appendChild(img);
+      }
     });
   }
 
-  function addTagChip(text, container){
-    const div = document.createElement("span");
-    div.className = "tag-chip";
-    div.textContent = text;
-    div.title = "點擊移除";
-    div.addEventListener("click", () => div.remove());
-    container.appendChild(div);
+  setupEditDrawer() {
+    const drawer = document.getElementById('editDrawer');
+    const closeBtn = document.getElementById('closeDrawer');
+    const saveBtn = document.getElementById('saveRecipe');
+    const deleteBtn = document.getElementById('deleteRecipe');
+
+    closeBtn.addEventListener('click', () => {
+      drawer.classList.add('hidden');
+      drawer.setAttribute('aria-hidden', 'true');
+      this.editTargetId = null;
+    });
+
+    saveBtn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      if (!__recipesDirHandle) { alert('尚未選擇資料夾'); return; }
+      await this.saveEditedRecipe();
+      await writeCSVToLocal(); // 儲存後立刻寫回
+    });
+
+    deleteBtn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      if (!__recipesDirHandle) { alert('尚未選擇資料夾'); return; }
+      if (confirm('確定要刪除這個食譜嗎？')) {
+        this.deleteRecipe();
+        await writeCSVToLocal(); // 刪除後立刻寫回
+      }
+    });
   }
 
-  function readFormToRecipe(){
-    const ingredients = Array.from(el.ingredientsList?.querySelectorAll("input") || [])
-      .map(i => i.value.trim()).filter(Boolean).join(" | ");
-    const steps = Array.from(el.stepsList?.querySelectorAll("input") || [])
-      .map(i => i.value.trim()).filter(Boolean).join("\n");
-    const tags = Array.from(el.tagsDisplay?.querySelectorAll(".tag-chip") || [])
-      .map(ch => ch.textContent.trim()).join(";");
+  editRecipe(id) {
+    if (!__recipesDirHandle) { alert('尚未選擇資料夾'); return; }
 
+    const recipe = this.recipes.find(r => r.id === id);
+    if (!recipe) return;
+
+    this.editTargetId = id;
+    const drawer = document.getElementById('editDrawer');
+    const form = document.getElementById('editForm');
+
+    form.title.value = recipe.title || '';
+    form.category.value = recipe.category || '';
+    form.tags.value = recipe.tags || '';
+    form.ingredients.value = (recipe.ingredients || '').replace(/\|/g, '\n');
+    form.steps.value = (recipe.steps || '').replace(/>/g, '\n');
+    form.prep_minutes.value = recipe.prep_minutes || '';
+    form.cook_minutes.value = recipe.cook_minutes || '';
+    form.servings.value = recipe.servings || '';
+    form.calories.value = recipe.calories || '';
+    form.image_url.value = recipe.image_url || '';
+
+    const preview = document.getElementById('imagePreview');
+    preview.innerHTML = '';
+    if (recipe.image_url) {
+      this.resolveImageURL(recipe.image_url).then(src => {
+        const img = document.createElement('img');
+        img.src = src;
+        Object.assign(img.style, { maxWidth: '100%', borderRadius: '8px', marginBottom: '8px' });
+        preview.appendChild(img);
+
+        const caption = document.createElement('div');
+        caption.textContent = '目前的圖片';
+        Object.assign(caption.style, { fontSize: '0.9rem', color: '#666' });
+        preview.appendChild(caption);
+      }).catch(() => { });
+    }
+
+    drawer.classList.remove('hidden');
+    drawer.setAttribute('aria-hidden', 'false');
+  }
+
+  async saveEditedRecipe() {
+    const form = document.getElementById('editForm');
+    const index = this.recipes.findIndex(r => r.id === this.editTargetId);
+    if (index === -1) return;
+
+    let imageUrl = form.image_url.value.trim();
+
+    // 新上傳圖片 → 覆蓋/新增
+    const imageFile = document.getElementById('imageFile').files[0];
+    if (imageFile) {
+      try {
+        const result = await saveImageToLocalFolder(imageFile, this.editTargetId);
+        if (result.ok) imageUrl = result.relativePath;
+      } catch (err) {
+        console.error('圖片上傳錯誤:', err);
+        alert('圖片上傳失敗；將沿用原圖片網址/路徑。');
+      }
+    }
+
+    this.recipes[index] = {
+      ...this.recipes[index],
+      title: form.title.value.trim(),
+      category: form.category.value.trim(),
+      tags: form.tags.value.trim(),
+      ingredients: form.ingredients.value.trim().replace(/\n/g, '|'),
+      steps: form.steps.value.trim().replace(/\n/g, '>'),
+      prep_minutes: form.prep_minutes.value || '0',
+      cook_minutes: form.cook_minutes.value || '0',
+      servings: form.servings.value || '',
+      calories: form.calories.value || '',
+      image_url: imageUrl,
+    };
+
+    await this.withStableUI(() => {
+      // ...更新資料邏輯（維持你現有那段）...
+      this.filteredRecipes = this.recipes; // 直接更新快取，不再另觸發 filterRecipes() 的 render
+    });
+    const drawer = document.getElementById('editDrawer');
+    drawer.classList.add('hidden');
+    drawer.setAttribute('aria-hidden', 'true');
+    this.editTargetId = null;
+  }
+
+  deleteRecipe() {
+    const index = this.recipes.findIndex(r => r.id === this.editTargetId);
+    if (index !== -1) {
+      this.withStableUI(() => {
+        this.recipes.splice(index, 1);
+        this.filteredRecipes = this.recipes;
+      });
+      const drawer = document.getElementById('editDrawer');
+      drawer.classList.add('hidden');
+      drawer.setAttribute('aria-hidden', 'true');
+      this.editTargetId = null;
+    }
+  }
+
+  // ===== 動態欄位 =====
+  addIngredient() {
+    const wrap = document.getElementById('ingredientsList');
+    const div = document.createElement('div');
+    div.className = 'ingredient-item';
+    div.innerHTML = `
+      <input type="text" placeholder="例如：番茄 2顆" required />
+      <button type="button" class="remove-btn">移除</button>`;
+    div.querySelector('.remove-btn').addEventListener('click', () => div.remove());
+    wrap.appendChild(div);
+  }
+  removeIngredient(btn) {
+    btn.closest('.ingredient-item')?.remove();
+  }
+
+  addStep() {
+    const wrap = document.getElementById('stepsList');
+    const idx = wrap.querySelectorAll('.step-item').length + 1;
+    const div = document.createElement('div');
+    div.className = 'step-item';
+    div.innerHTML = `
+      <span style="font-weight:bold;min-width:30px;">${idx}.</span>
+      <input type="text" placeholder="詳細描述步驟" required />
+      <button type="button" class="remove-btn">移除</button>`;
+    div.querySelector('.remove-btn').addEventListener('click', () => {
+      div.remove();
+      Array.from(wrap.querySelectorAll('.step-item span')).forEach((s, i) => (s.textContent = (i + 1) + '.'));
+    });
+    wrap.appendChild(div);
+  }
+  removeStep(btn) {
+    btn.closest('.step-item')?.remove();
+  }
+
+  clearForm() {
+    document.getElementById('addRecipeForm').reset();
+    document.getElementById('tagsDisplay').innerHTML = '';
+    document.getElementById('addImagePreview').innerHTML = '';
+    document.getElementById('ingredientsList').innerHTML = `
+      <div class="ingredient-item">
+        <input type="text" placeholder="例如：義大利麵 200g" required />
+        <button type="button" class="remove-btn" onclick="app.removeIngredient(this)">移除</button>
+      </div>`;
+    document.getElementById('stepsList').innerHTML = `
+      <div class="step-item">
+        <span style="font-weight: bold; min-width: 30px;">1.</span>
+        <input type="text" placeholder="詳細描述第一個步驟" required />
+        <button type="button" class="remove-btn" onclick="app.removeStep(this)">移除</button>
+      </div>`;
+  }
+
+  updateCategories() {
+    const categorySelect = document.getElementById('categorySelect');
+    const categories = [...new Set(this.recipes.map((r) => r.category).filter(Boolean))].sort();
+    categorySelect.querySelectorAll('option:not(:first-child)').forEach((o) => o.remove());
+    categories.forEach((category) => {
+      const option = document.createElement('option');
+      option.value = category;
+      option.textContent = category;
+      categorySelect.appendChild(option);
+    });
+  }
+
+  filterRecipes() {
+    const ui = this.captureUIState();
+    const searchTerm = (document.getElementById('searchInput').value || '').toLowerCase();
+    const selectedCategory = document.getElementById('categorySelect').value;
+    this.filteredRecipes = this.recipes.filter(/* ... */);
+    this.render();
+    this.restoreUIState(ui);
+    this.restoreUIState(ui);
+  }
+
+  captureUIState() {
     return {
-      id: genId(),
-      title: $("#recipeTitle")?.value.trim() || "",
-      category: $("#recipeCategory")?.value || "",
-      tags,
-      ingredients,
-      steps,
-      prep_minutes: $("#prepTime")?.value || "",
-      cook_minutes: $("#cookTime")?.value || "",
-      servings: $("#recipeServings")?.value || "",
-      calories: $("#calories")?.value || "",
-      image_url: $("#imageUrl")?.value.trim() || ""
+      scrollY: window.scrollY,
+      search: (document.getElementById('searchInput')?.value || ''),
+      category: (document.getElementById('categorySelect')?.value || ''),
+      view: this.currentView
     };
   }
+  restoreUIState(state) {
+    if (!state) return;
+    const s = document.getElementById('searchInput');
+    const c = document.getElementById('categorySelect');
+    if (s && s.value !== state.search) s.value = state.search;
+    if (c && c.value !== state.category) c.value = state.category;
+    if (this.currentView !== state.view) {
+      this.currentView = state.view;
+      this.updateViewClass();
+    }
+    // 還原滾動位置（用 rAF 確保在重繪後）
+    requestAnimationFrame(() => window.scrollTo({ top: state.scrollY, left: 0, behavior: 'auto' }));
+  }
+  async withStableUI(updaterFn) {
+    const ui = this.captureUIState();
+    await Promise.resolve(updaterFn?.());
+    this.render();
+    this.restoreUIState(ui);
+  }
 
-  function clearForm(){
-    el.addForm?.reset();
-    el.tagsDisplay && (el.tagsDisplay.innerHTML = "");
-    if (el.ingredientsList) {
-      el.ingredientsList.innerHTML = `
-        <div class="ingredient-item">
-          <input type="text" placeholder="例如：義大利麵 200g" required />
-          <button type="button" class="remove-btn" onclick="app.removeIngredient(this)">移除</button>
+  updateViewClass() {
+    const container = document.getElementById('recipesContainer');
+    container.className = this.currentView === 'grid' ? 'recipes-grid' : 'recipes-list';
+  }
+
+  render() {
+    this.updateStats();
+    this.renderrecipes();
+  }
+
+  updateStats() {
+    const stats = document.getElementById('stats');
+    const total = this.recipes.length;
+    const showing = this.filteredrecipes.length;
+    stats.textContent = `顯示 ${showing} / ${total} 道食譜`;
+  }
+
+  // 只走本地資料夾：把 CSV 內的 image_url（images/檔名 或 檔名）轉為 blob URL
+  async resolveImageURL(value) {
+    if (!value) return '';
+    const v = String(value).trim();
+    if (/^(data:|blob:)/i.test(v)) return v; // 仍允許 data/blob
+
+    if (!__imagesDirHandle) return ''; // 尚未選資料夾 → 先不顯示
+
+    const name = v.replace(/^images\//i, '');
+    if (this.imageURLCache.has(name)) return this.imageURLCache.get(name);
+
+    try {
+      const fh = await __imagesDirHandle.getFileHandle(name);
+      const file = await fh.getFile();
+      const url = URL.createObjectURL(file);
+      this.imageURLCache.set(name, url);
+      return url;
+    } catch (e) {
+      console.warn('找不到圖片於 images/：', v);
+      return '';
+    }
+  }
+
+  renderrecipes() {
+    const container = document.getElementById('recipesContainer');
+    if (this.filteredrecipes.length === 0) {
+      container.innerHTML = `
+        <div class="empty-state">
+          <div class="icon">🔍</div>
+          <h3>找不到符合條件的食譜</h3>
+          <p>試著調整搜尋關鍵字或分類篩選</p>
         </div>`;
+      return;
     }
-    if (el.stepsList){
-      el.stepsList.innerHTML = `
-        <div class="step-item">
-          <span style="font-weight: bold; min-width: 30px;">1.</span>
-          <input type="text" placeholder="詳細描述第一個步驟" required />
-          <button type="button" class="remove-btn" onclick="app.removeStep(this)">移除</button>
-        </div>`;
-    }
-  }
 
-  // ====== 編輯 Modal ======
-  function bindEditModal(){
-    // 事件委派：卡片上的「✏️ 編輯」
-    el.recipesContainer.addEventListener("click", (ev) => {
-      const btn = ev.target.closest(".edit-btn");
-      if (!btn) return;
-      if (!state.loggedIn) { alert("請先登入管理者帳號"); return; }
-      const id = btn.dataset.id;
-      const rec = state.recipes.find(r => r.id === id);
-      if (!rec) return;
-      openEditModal(rec);
-    });
+    container.innerHTML = this.filteredrecipes.map((recipe) => {
+      const totalMin = (parseInt(recipe.prep_minutes || 0, 10) || 0) + (parseInt(recipe.cook_minutes || 0, 10) || 0);
+      const tagsHtml = recipe.tags
+        ? recipe.tags.split(';').map((tag) => `<span class="tag">${tag.trim()}</span>`).join('')
+        : '';
 
-    // 關閉（背景或關閉鈕）
-    [el.editBackdrop, ...$$('[data-close]', el.editModal)].forEach(node => {
-      node.addEventListener("click", (e) => {
-        if (e.target === el.editBackdrop || e.currentTarget.hasAttribute("data-close")) closeEditModal();
-      });
-    });
-
-    // 儲存
-    el.editForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      if (!state.currentEditId) return;
-      const idx = state.recipes.findIndex(r => r.id === state.currentEditId);
-      if (idx === -1) return;
-
-      const form = new FormData(el.editForm);
-      const r = { ...state.recipes[idx] };
-      r.id = form.get("id") || r.id;
-      r.title = (form.get("title") || "").trim();
-      r.category = (form.get("category") || "").trim();
-      r.tags = (form.get("tags") || "").trim();
-      r.ingredients = (form.get("ingredients") || "").trim();
-      r.steps = (form.get("steps") || "").trim();
-      r.prep_minutes = form.get("prep_minutes") || "";
-      r.cook_minutes = form.get("cook_minutes") || "";
-      r.servings = form.get("servings") || "";
-      r.calories = form.get("calories") || "";
-      r.image_url = (form.get("image_url") || "").trim();
-
-      await IDB.put(r);
-      await loadFromIDB();
-      renderAll();
-      closeEditModal();
-      alert("✅ 已更新（本機 IndexedDB）");
-    });
-
-    // 刪除
-    el.editForm.querySelector("[data-delete]").addEventListener("click", async (e) => {
-      e.preventDefault();
-      if (!state.currentEditId) return;
-      if (!confirm("確定要刪除這筆食譜嗎？此動作無法還原。")) return;
-
-      await IDB.delete(state.currentEditId);
-      await loadFromIDB();
-      renderAll();
-      closeEditModal();
-      alert("🗑️ 已刪除（本機 IndexedDB）");
-    });
-
-    // Esc 關閉
-    document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape" && el.editModal.getAttribute("aria-hidden") === "false") {
-        closeEditModal();
-      }
-    });
-  }
-
-  function openEditModal(rec){
-    state.currentEditId = rec.id;
-    el.editForm.reset();
-    el.editForm.querySelector("[name='id']").value = rec.id || "";
-    el.editForm.querySelector("[name='title']").value = rec.title || "";
-    el.editForm.querySelector("[name='category']").value = rec.category || "";
-    el.editForm.querySelector("[name='tags']").value = rec.tags || "";
-    el.editForm.querySelector("[name='ingredients']").value = rec.ingredients || "";
-    el.editForm.querySelector("[name='steps']").value = rec.steps || "";
-    el.editForm.querySelector("[name='prep_minutes']").value = rec.prep_minutes || "";
-    el.editForm.querySelector("[name='cook_minutes']").value = rec.cook_minutes || "";
-    el.editForm.querySelector("[name='servings']").value = rec.servings || "";
-    el.editForm.querySelector("[name='calories']").value = rec.calories || "";
-    el.editForm.querySelector("[name='image_url']").value = rec.image_url || "";
-
-    el.editBackdrop.setAttribute("aria-hidden", "false");
-    el.editModal.setAttribute("aria-hidden", "false");
-    document.documentElement.style.overflow = "hidden";
-  }
-  function closeEditModal(){
-    state.currentEditId = null;
-    el.editBackdrop.setAttribute("aria-hidden", "true");
-    el.editModal.setAttribute("aria-hidden", "true");
-    document.documentElement.style.overflow = "";
-  }
-
-  // ====== Render（搜尋 / 篩選 / 排序） ======
-  function renderAll(){
-    const q = (el.searchInput?.value || "").trim().toLowerCase();
-    const cat = el.categorySelect?.value || "";
-
-    // 篩選
-    let list = state.recipes.filter(r => {
-      const hay = (r.title + " " + r.ingredients + " " + r.tags).toLowerCase();
-      const hitText = !q || hay.includes(q);
-      const hitCat = !cat || r.category === cat;
-      return hitText && hitCat;
-    });
-
-    // 排序
-    list = stableSort(list, comparatorFor(state.sort.key));
-    if (state.sort.reverse) list.reverse();
-
-    // 分類下拉（保留當前選擇）
-    const cats = Array.from(new Set(state.recipes.map(r => r.category).filter(Boolean))).sort(collator.compare);
-    const prev = el.categorySelect.value;
-    el.categorySelect.innerHTML = `<option value="">📋 全部分類</option>` + cats.map(c => `<option value="${c}">${c}</option>`).join("");
-    if (prev) el.categorySelect.value = prev;
-
-    // 清單
-    el.recipesContainer.innerHTML = list.map(renderCard).join("");
-  }
-
-  function comparatorFor(key){
-    switch(key){
-      case "title":
-        return (a,b) => collator.compare(a.title || "", b.title || "") || collator.compare(a.id, b.id);
-      case "mins": {
-        const mins = r => (Number(r.prep_minutes)||0) + (Number(r.cook_minutes)||0);
-        return (a,b) => (mins(a) - mins(b)) || collator.compare(a.title, b.title);
-      }
-      case "calories":
-        return (a,b) => (num(a.calories) - num(b.calories)) || collator.compare(a.title, b.title);
-      case "servings":
-        return (a,b) => (num(a.servings) - num(b.servings)) || collator.compare(a.title, b.title);
-      case "cat_title":
-      default:
-        return (a,b) => {
-          const ac = a.category || "～～"; // 空分類排最後
-          const bc = b.category || "～～";
-          return collator.compare(ac, bc) || collator.compare(a.title || "", b.title || "") || collator.compare(a.id, b.id);
-        };
-    }
-  }
-  function num(v){ const n = Number(v); return Number.isFinite(n) ? n : Number.POSITIVE_INFINITY; }
-  function stableSort(arr, cmp){
-    return arr.map((v,i)=>[v,i]).sort((a,b)=>cmp(a[0],b[0]) || (a[1]-b[1])).map(([v])=>v);
-  }
-
-  function renderCard(r){
-    const tagHtml = (r.tags || "").split(/[;,；]/).map(t => t.trim()).filter(Boolean).map(t => `<span class="tag">${escapeHtml(t)}</span>`).join("");
-    const hasImg = !!r.image_url;
-    const img = hasImg ? `<img src="${escapeHtml(r.image_url)}" alt="${escapeHtml(r.title)}">` : `<span>🍽️</span>`;
-    const mins = (Number(r.prep_minutes) || 0) + (Number(r.cook_minutes) || 0);
-    return `
+      return `
       <div class="recipe-card">
-        <div class="recipe-image">${img}</div>
+        <div class="recipe-image">
+          ${recipe.image_url ? `<img data-img="${recipe.id}" alt="${recipe.title}">` : '🍽️'}
+        </div>
         <div class="recipe-content">
-          <div class="recipe-title">${escapeHtml(r.title)}</div>
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
+            <h3 class="recipe-title">${recipe.title || ''}</h3>
+            <button onclick="app.editRecipe('${recipe.id}')" class="btn" style="font-size: 0.8rem; padding: 4px 8px;">編輯</button>
+          </div>
           <div class="recipe-meta">
-            <div class="meta-item">⏱️ ${mins || 0} 分</div>
-            <div class="meta-item">🍽️ ${r.servings || "-"} 人</div>
-            <div class="meta-item">🔥 ${r.calories || "-"} 卡</div>
+            <span class="meta-item">⏱️ ${totalMin} 分鐘</span>
+            <span class="meta-item">👥 ${recipe.servings || '？'} 人份</span>
+            ${recipe.calories ? `<span class="meta-item">🔥 ${recipe.calories} 卡</span>` : ''}
           </div>
-          <div class="recipe-tags">${tagHtml}</div>
+          ${tagsHtml ? `<div class="recipe-tags">${tagsHtml}</div>` : ''}
           <div class="recipe-details">
-            <details><summary>食材</summary><div class="ingredients-list">${escapeHtml((r.ingredients||"").replace(/\|/g,"｜"))}</div></details>
-            <details><summary>步驟</summary><div class="steps-list">${escapeHtml((r.steps||"").replace(/\n/g,"<br>"))}</div></details>
-          </div>
-          <div style="margin-top:12px; display:flex; gap:8px;">
-            <button class="btn btn-secondary edit-btn" data-id="${r.id}">✏️ 編輯</button>
+            <details>
+              <summary>📝 材料清單</summary>
+              <div class="ingredients-list">
+                ${(recipe.ingredients || '').split('|').map((i) => `<div>• ${i.trim()}</div>`).join('')}
+              </div>
+            </details>
+            <details>
+              <summary>👨‍🍳 製作步驟</summary>
+              <div class="steps-list">
+                ${(recipe.steps || '').split('>').map((s) => `<div class="step">${s.trim()}</div>`).join('')}
+              </div>
+            </details>
           </div>
         </div>
-      </div>
-    `;
-  }
+      </div>`;
+    }).join('');
 
-  function escapeHtml(s){
-    return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-  }
-
-  // ====== Login / Logout ======
-  function bindLogin(){
-    function openLoginModal(){
-      el.loginModal.setAttribute("aria-hidden","false");
-      const inner = el.loginModal.querySelector(".modal");
-      if (inner) inner.setAttribute("aria-hidden","false");
-      document.documentElement.style.overflow = "hidden";
+    // 異步補圖（只能在已選資料夾後）
+    if (__imagesDirHandle) {
+      this.filteredrecipes.forEach(async (recipe) => {
+        if (!recipe.image_url) return;
+        const imgEl = container.querySelector(`img[data-img="${recipe.id}"]`);
+        if (!imgEl) return;
+        try {
+          const src = await this.resolveImageURL(recipe.image_url);
+          if (src) imgEl.src = src;
+          imgEl.removeAttribute('data-img');
+        } catch (e) {
+          console.warn('圖片載入失敗：', recipe.image_url, e);
+        }
+      });
     }
-    function closeLoginModal(){
-      el.loginModal.setAttribute("aria-hidden","true");
-      const inner = el.loginModal.querySelector(".modal");
-      if (inner) inner.setAttribute("aria-hidden","true");
-      document.documentElement.style.overflow = "";
-    }
-
-    el.btnLogin?.addEventListener("click", openLoginModal);
-    $("[data-close]", el.loginModal)?.addEventListener("click", closeLoginModal);
-    el.loginModal?.addEventListener("click", (e) => { if (e.target === el.loginModal) closeLoginModal(); });
-
-    el.loginForm?.addEventListener("submit", (e) => {
-      e.preventDefault();
-      const user = $("#adminUser")?.value.trim();
-      const pass = $("#adminPass")?.value;
-      if (user === "admin" && pass === "recipes123"){
-        state.loggedIn = true;
-        document.body.classList.add("logged-in");
-        el.btnLogin?.classList.add("hidden");
-        el.btnLogout?.classList.remove("hidden");
-        closeLoginModal();
-      } else {
-        alert("帳號或密碼錯誤");
-      }
-    });
-
-    el.btnLogout?.addEventListener("click", () => {
-      state.loggedIn = false;
-      document.body.classList.remove("logged-in");
-      el.btnLogin?.classList.remove("hidden");
-      el.btnLogout?.classList.add("hidden");
-    });
-
-    document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape" && el.loginModal?.getAttribute("aria-hidden") === "false") {
-        closeLoginModal();
-      }
-    });
   }
+}
 
-  // ====== 匯出 / 匯入 CSV ======
-  async function onExportCSV(){
-    const csvText = window.arrayToCSV(state.recipes, FIELDS);
+// ====== 啟動 ======
+const app = new RecipeApp();
+window.app = app;
+
+// ====== 本地檔案環境變數 ======
+let __recipesDirHandle = null;
+let __imagesDirHandle = null;
+
+async function pickrecipesFolder() {
+  if (!window.showDirectoryPicker) { alert("你的瀏覽器不支援選擇資料夾。請改用 Chrome/Edge。"); return; }
+  try {
+    __recipesDirHandle = await window.showDirectoryPicker({ mode: "readwrite" });
+    __imagesDirHandle = await __recipesDirHandle.getDirectoryHandle("images", { create: true });
+    alert("已選擇資料夾：之後圖片會存到 images/，CSV 會讀/寫於該資料夾。");
+    await app.afterFolderPicked();
+  } catch (e) { console.error(e); }
+}
+
+async function writeFile(handle, data) {
+  const w = await handle.createWritable();
+  await w.write(data);
+  await w.close();
+}
+
+function extFromFilename(n) {
+  const m = (n || "").match(/\.([a-zA-Z0-9]+)$/);
+  return m ? m[1].toLowerCase() : "png";
+}
+
+async function saveImageToLocalFolder(file, recipeId) {
+  if (!__recipesDirHandle || !__imagesDirHandle) return { ok: false, reason: "NO_DIR" };
+  const ext = extFromFilename(file.name);
+  const filename = `${recipeId}-${Date.now()}.${ext}`;
+  const fh = await __imagesDirHandle.getFileHandle(filename, { create: true });
+  await writeFile(fh, await file.arrayBuffer());
+  return { ok: true, relativePath: `images/${filename}` };
+}
+
+async function writeCSVToLocal() {
+  if (!__recipesDirHandle) { alert("尚未選擇資料夾。請先按「選擇資料夾」。"); return; }
+  const headers = ["id", "title", "category", "tags", "ingredients", "steps", "prep_minutes", "cook_minutes", "servings", "calories", "image_url"];
+  const esc = (s) => {
+    if (s == null) return "";
+    s = String(s);
+    if (s.includes(",") || s.includes("\"") || s.includes("\n") || s.includes("\r"))
+      return `"${s.replace(/"/g, '""')}"`;
+    return s;
+  };
+  const lines = [headers.join(",")];
+  for (const r of app.recipes) { lines.push(headers.map(h => esc(r[h])).join(",")); }
+
+  // 加 BOM & CRLF
+  const bom = "\uFEFF";
+  const csvText = bom + lines.join("\r\n");
+
+  const csvHandle = await __recipesDirHandle.getFileHandle("recipes.csv", { create: true });
+  await writeFile(csvHandle, new Blob([csvText], { type: "text/csv;charset=utf-8" }));
+  alert("已寫入 recipes.csv (UTF-8 with BOM)，Excel 開啟不會亂碼。");
+}
+
+// ====== 頂部按鈕綁定（離線限定）======
+document.addEventListener("click", (ev) => {
+  const t = ev.target;
+  if (!t) return;
+  if (t.id === "btnPickFolder") pickrecipesFolder();
+  if (t.id === "btnWriteCSV") writeCSVToLocal();
+  if (t.id === "btnExport") {
+    const headers = ["id", "title", "category", "tags", "ingredients", "steps", "prep_minutes", "cook_minutes", "servings", "calories", "image_url"];
+    const esc = (s) => {
+      if (s == null) return "";
+      s = String(s);
+      if (s.includes(",") || s.includes("\"") || s.includes("\n") || s.includes("\r"))
+        return `"${s.replace(/"/g, '""')}"`;
+      return s;
+    };
+    const lines = [headers.join(",")];
+    for (const r of app.recipes) { lines.push(headers.map(h => esc(r[h])).join(",")); }
+
+    const bom = "\uFEFF";
+    const csvText = bom + lines.join("\r\n");
+
     const blob = new Blob([csvText], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url; a.download = CSV_FILE;
-    document.body.appendChild(a); a.click(); a.remove();
+    a.href = url; a.download = "recipes.csv";
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
     URL.revokeObjectURL(url);
   }
+});
 
-  async function onImportCSV(e){
-    const file = e.target.files?.[0];
-    if (!file) return;
-    try {
-      const text = await file.text();
-      const { rows } = await window.csvTextToArray(text);
-      const normalized = normalizeRows(rows);
-      await IDB.bulkReplace(normalized);
-      await loadFromIDB();
-      renderAll();
-      flashStats("✅ 已匯入 CSV 並寫入本機 IndexedDB");
-    } catch (err) {
-      alert("匯入失敗：" + err.message);
-    } finally {
-      e.target.value = "";
-    }
+// 編輯抽屜：新圖片預覽
+document.addEventListener("change", (ev) => {
+  const t = ev.target;
+  if (t && t.id === "imageFile") {
+    const preview = document.getElementById("imagePreview");
+    if (!preview) return;
+    preview.innerHTML = "";
+    const f = t.files && t.files[0];
+    if (!f) return;
+    const url = URL.createObjectURL(f);
+    const img = document.createElement("img");
+    img.src = url;
+    Object.assign(img.style, { maxWidth: "100%", borderRadius: "12px" });
+    preview.appendChild(img);
+    const caption = document.createElement('div');
+    caption.textContent = '新上傳的圖片預覽';
+    Object.assign(caption.style, { fontSize: '0.9rem', color: '#666', marginTop: '8px' });
+    preview.appendChild(caption);
   }
+});
 
-  // ====== 小工具 ======
-  function genId(){ return "R" + Math.random().toString(36).slice(2, 8).toUpperCase(); }
-
-  function showSuccess(msg){
-    if (!el.successMessage) return;
-    el.successMessage.textContent = msg;
-    el.successMessage.style.display = "block";
-    setTimeout(() => el.successMessage.style.display = "none", 1600);
-  }
-
-  function flashStats(msg){
-    if (!el.stats) return;
-    if (!msg) msg = `目前共有 ${state.recipes.length} 道食譜`;
-    el.stats.textContent = msg;
-    setTimeout(() => { el.stats.textContent = `目前共有 ${state.recipes.length} 道食譜`; }, 1500);
-  }
-
-  // 提供給 HTML 的 inline 事件
-  window.app = {
-    addIngredient(){
-      if (!el.ingredientsList) return;
-      const row = document.createElement("div");
-      row.className = "ingredient-item";
-      row.innerHTML = `
-        <input type="text" placeholder="例如：雞胸肉 200g" required />
-        <button type="button" class="remove-btn" onclick="app.removeIngredient(this)">移除</button>`;
-      el.ingredientsList.appendChild(row);
-    },
-    removeIngredient(btn){ btn.closest(".ingredient-item")?.remove(); },
-    addStep(){
-      if (!el.stepsList) return;
-      const row = document.createElement("div");
-      row.className = "step-item";
-      row.innerHTML = `
-        <span style="font-weight: bold; min-width: 30px;">•</span>
-        <input type="text" placeholder="下一個步驟" required />
-        <button type="button" class="remove-btn" onclick="app.removeStep(this)">移除</button>`;
-      el.stepsList.appendChild(row);
-    },
-    removeStep(btn){ btn.closest(".step-item")?.remove(); },
-    clearForm
-  };
-})();
+// 暴露全域
+window.recipes = app.recipes;
+window.filteredrecipes = app.filteredrecipes;
