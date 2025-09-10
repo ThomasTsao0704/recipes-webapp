@@ -1,0 +1,1782 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>雞尾酒譜瀏覽</title>
+
+    <!-- PWA Meta Tags -->
+    <link rel="manifest" href="./manifest.json">
+    <meta name="theme-color" content="#667eea">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="雞尾酒譜">
+    <link rel="apple-touch-icon" href="icons/icon-192.png">
+
+    <!-- 外掛：PapaParse 供 CSV 解析 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js" defer></script>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 10px;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, .3);
+        }
+
+        .subtitle {
+            font-size: 1.1rem;
+            opacity: .9;
+            margin-bottom: 30px;
+        }
+
+        .age-warning {
+            background: rgba(255, 193, 7, .9);
+            color: #856404;
+            padding: 12px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            text-align: center;
+            font-weight: 500;
+            backdrop-filter: blur(10px);
+        }
+
+        .install-prompt {
+            background: rgba(72, 187, 120, .9);
+            color: #fff;
+            padding: 12px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            text-align: center;
+            font-weight: 500;
+            backdrop-filter: blur(10px);
+            display: none;
+        }
+
+        .install-btn {
+            background: #fff;
+            color: #48bb78;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            margin-left: 10px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        .install-btn:hover {
+            background: #f7fafc;
+        }
+
+        .offline-indicator {
+            background: rgba(245, 101, 101, .9);
+            color: #fff;
+            padding: 8px 16px;
+            border-radius: 6px;
+            margin-bottom: 16px;
+            text-align: center;
+            display: none;
+            backdrop-filter: blur(10px);
+        }
+
+        .filters {
+            background: rgba(255, 255, 255, .1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 25px;
+            margin-bottom: 30px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, .1);
+        }
+
+        .filter-row {
+            display: grid;
+            grid-template-columns: 2fr 1fr auto;
+            gap: 15px;
+            align-items: center;
+        }
+
+        input[type="text"],
+        select,
+        input[type="number"],
+        input[type="url"],
+        input[type="file"],
+        textarea {
+            padding: 12px 16px;
+            border: none;
+            border-radius: 12px;
+            background: rgba(255, 255, 255, .9);
+            font-size: 1rem;
+            transition: .3s;
+            width: 100%;
+        }
+
+        input[type="file"] {
+            padding: 8px 12px;
+            background: rgba(255, 255, 255, .95);
+            border: 2px dashed rgba(102, 126, 234, .3);
+            cursor: pointer;
+        }
+
+        input[type="file"]:hover {
+            border-color: rgba(102, 126, 234, .6);
+            background: #fff;
+        }
+
+        input:focus,
+        select:focus,
+        textarea:focus {
+            outline: none;
+            background: #fff;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, .15);
+        }
+
+        .view-toggle {
+            display: flex;
+            background: rgba(255, 255, 255, .2);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .view-btn {
+            padding: 8px 16px;
+            border: none;
+            background: transparent;
+            color: #fff;
+            cursor: pointer;
+            transition: .3s;
+        }
+
+        .view-btn.active {
+            background: rgba(255, 255, 255, .3);
+        }
+
+        .stats {
+            text-align: center;
+            color: rgba(255, 255, 255, .8);
+            margin-bottom: 25px;
+            font-size: .9rem;
+        }
+
+        .cocktails-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+        }
+
+        .cocktails-list {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 16px;
+        }
+
+        .cocktail-card {
+            background: #fff;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, .1);
+            transition: .3s;
+            animation: fadeIn .5s ease;
+        }
+
+        .cocktail-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, .15);
+        }
+
+        .cocktail-image {
+            width: 100%;
+            aspect-ratio: 16/9;
+            background: #f3f4f6;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            border-radius: 12px;
+            font-size: 2rem;
+        }
+
+        .cocktail-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .cocktail-content {
+            padding: 20px;
+        }
+
+        .cocktail-title {
+            font-size: 1.3rem;
+            font-weight: 600;
+            color: #2d3748;
+            flex: 1;
+            margin: 0 0 8px 0;
+        }
+
+        .cocktail-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-bottom: 12px;
+            font-size: .85rem;
+            color: #718096;
+        }
+
+        .meta-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .cocktail-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-bottom: 15px;
+        }
+
+        .tag {
+            background: #e2e8f0;
+            color: #4a5568;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: .75rem;
+            font-weight: 500;
+        }
+
+        .cocktail-details {
+            margin-top: 12px;
+        }
+
+        details {
+            margin-bottom: 8px;
+        }
+
+        summary {
+            cursor: pointer;
+            font-weight: 500;
+            color: #4299e1;
+            padding: 8px 0;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        summary:hover {
+            color: #3182ce;
+        }
+
+        .ingredients-list,
+        .instructions-list {
+            padding: 12px 0;
+            line-height: 1.6;
+            color: #4a5568;
+        }
+
+        .instruction {
+            margin-bottom: 8px;
+            padding-left: 16px;
+            position: relative;
+        }
+
+        .instruction::before {
+            content: counter(step-counter);
+            counter-increment: step-counter;
+            position: absolute;
+            left: 0;
+            top: 0;
+            background: #4299e1;
+            color: #fff;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            font-size: .7rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+        }
+
+        .instructions-list {
+            counter-reset: step-counter;
+        }
+
+        .nav-tabs {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .nav-btn {
+            background: rgba(255, 255, 255, .2);
+            border: none;
+            color: #fff;
+            padding: 12px 24px;
+            border-radius: 25px;
+            cursor: pointer;
+            transition: .3s;
+            font-size: 1rem;
+            font-weight: 500;
+        }
+
+        .nav-btn:hover {
+            background: rgba(255, 255, 255, .3);
+            transform: translateY(-2px);
+        }
+
+        .nav-btn.active {
+            background: rgba(255, 255, 255, .4);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, .2);
+        }
+
+        .page {
+            display: none;
+        }
+
+        .page.active {
+            display: block;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: rgba(255, 255, 255, .7);
+        }
+
+        .empty-state .icon {
+            font-size: 4rem;
+            margin-bottom: 20px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: rgba(255, 255, 255, .8);
+        }
+
+        .loading::after {
+            content: '';
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid rgba(255, 255, 255, .3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s linear infinite;
+            margin-left: 10px;
+        }
+
+        .add-cocktail-form {
+            text-align: left;
+        }
+
+        .form-section {
+            background: rgba(255, 255, 255, .1);
+            border-radius: 16px;
+            padding: 20px;
+            margin: 20px 0;
+            backdrop-filter: blur(10px);
+        }
+
+        .form-section h3 {
+            color: #fff;
+            margin-bottom: 16px;
+            font-size: 1.1rem;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .form-group label {
+            color: rgba(255, 255, 255, .9);
+            font-weight: 500;
+            margin-bottom: 6px;
+        }
+
+        .tags-input {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .tags-display {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .tag-chip {
+            display: inline-block;
+            padding: 6px 12px;
+            border-radius: 20px;
+            background: rgba(255, 255, 255, .9);
+            color: #4a5568;
+            cursor: pointer;
+            font-size: .85rem;
+            transition: .3s;
+        }
+
+        .tag-chip:hover {
+            background: #fff;
+            transform: translateY(-1px);
+        }
+
+        .ingredient-item,
+        .instruction-item {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .ingredient-item input,
+        .instruction-item input {
+            flex: 1;
+        }
+
+        .add-btn,
+        .remove-btn,
+        .btn {
+            cursor: pointer;
+            border: none;
+            border-radius: 12px;
+            padding: 8px 16px;
+            font-weight: 500;
+            transition: .3s;
+        }
+
+        .add-btn {
+            background: rgba(255, 255, 255, .9);
+            color: #2d3748;
+            margin-top: 8px;
+        }
+
+        .add-btn:hover {
+            background: #fff;
+            transform: translateY(-1px);
+        }
+
+        .remove-btn {
+            background: #fed7d7;
+            color: #822727;
+            padding: 6px 12px;
+            font-size: .85rem;
+        }
+
+        .remove-btn:hover {
+            background: #fbb6ce;
+        }
+
+        .btn-primary {
+            background: #4299e1;
+            color: #fff;
+            padding: 12px 24px;
+        }
+
+        .btn-primary:hover {
+            background: #3182ce;
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, .2);
+            color: #fff;
+            padding: 12px 24px;
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, .3);
+        }
+
+        .form-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+            margin-top: 20px;
+        }
+
+        .success-message {
+            display: none;
+            background: rgba(72, 187, 120, .9);
+            color: #fff;
+            padding: 16px 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            font-weight: 600;
+            backdrop-filter: blur(10px);
+        }
+
+        .topbar {
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 20px;
+            background: rgba(255, 255, 255, .95);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(0, 0, 0, .06);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, .1);
+        }
+
+        .brand {
+            font-weight: 600;
+            color: #2d3748;
+            font-size: 1.1rem;
+        }
+
+        .topbar .actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn-accent {
+            background: #e2e8f0;
+            color: #2d3748;
+        }
+
+        .btn-accent:hover {
+            background: #cbd5e0;
+        }
+
+        .btn-danger {
+            background: #ffd6d6;
+            color: #822727;
+        }
+
+        .btn-danger:hover {
+            background: #fbb6ce;
+        }
+
+        .drawer {
+            position: fixed;
+            right: 0;
+            top: 0;
+            bottom: 0;
+            width: min(420px, 95vw);
+            background: #fff;
+            box-shadow: -8px 0 30px rgba(0, 0, 0, .15);
+            padding: 20px;
+            overflow: auto;
+            z-index: 1001;
+            transform: translateX(100%);
+            transition: .3s;
+        }
+
+        .drawer:not(.hidden) {
+            transform: translateX(0);
+        }
+
+        .drawer.hidden {
+            transform: translateX(100%);
+        }
+
+        .drawer-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .drawer-header h3 {
+            margin: 0;
+            color: #2d3748;
+        }
+
+        .edit-form label {
+            display: block;
+            margin: 16px 0 6px;
+            font-size: 14px;
+            font-weight: 500;
+            color: #4a5568;
+        }
+
+        .edit-form input,
+        .edit-form textarea,
+        .edit-form select {
+            width: 100%;
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+            background: #fff;
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .drawer-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 20px;
+            padding-top: 16px;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        #imagePreview img,
+        #addImagePreview img {
+            max-width: 100%;
+            border-radius: 8px;
+            margin-top: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, .1);
+        }
+
+        #addImagePreview {
+            padding: 8px 0;
+            text-align: center;
+        }
+
+        #imagePreview {
+            margin: 8px 0;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        @media (max-width:768px) {
+            #cocktailsContainer.cocktails-grid {
+                grid-template-columns: 1fr !important;
+            }
+
+            .filter-row {
+                grid-template-columns: 1fr;
+                gap: 12px;
+            }
+
+            .view-toggle {
+                justify-self: center;
+            }
+
+            h1 {
+                font-size: 2rem;
+            }
+
+            .cocktails-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+
+            .topbar {
+                flex-direction: column;
+                gap: 12px;
+                padding: 16px;
+            }
+
+            .topbar .actions {
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+
+            .nav-tabs {
+                flex-direction: column;
+                align-items: center;
+                gap: 8px;
+            }
+
+            .nav-btn {
+                width: 200px;
+            }
+
+            .drawer {
+                width: 100vw;
+            }
+
+            .form-actions {
+                flex-direction: column;
+            }
+        }
+
+        @media (max-width:480px) {
+            .container {
+                padding: 12px;
+            }
+
+            .filters {
+                padding: 16px;
+            }
+
+            .form-section {
+                padding: 16px;
+            }
+
+            .cocktail-card {
+                margin: 0;
+            }
+        }
+
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- PWA 安裝提示 -->
+    <div id="installPrompt" class="install-prompt">
+        <span>🍸 將雞尾酒譜安裝到您的手機，隨時離線使用！</span>
+        <button id="installBtn" class="install-btn">立即安裝</button>
+        <button onclick="this.parentElement.style.display='none'" class="install-btn"
+            style="background:#f56565;color:white;">稍後</button>
+    </div>
+
+    <!-- 離線狀態指示 -->
+    <div id="offlineIndicator" class="offline-indicator">📡 目前處於離線模式，部分功能可能受限</div>
+
+    <header class="topbar">
+        <div class="brand">雞尾酒譜 WebApp</div>
+        <div class="actions">
+            <button id="btnImport" class="btn btn-accent" type="button">匯入 CSV</button>
+            <button id="btnExport" class="btn btn-accent" type="button">匯出 CSV</button>
+            <button id="btnClearData" class="btn btn-danger" type="button">清除資料</button>
+        </div>
+    </header>
+
+    <div class="container">
+        <header>
+            <h1>🍸 雞尾酒譜瀏覽</h1>
+            <p class="subtitle">探索經典調酒，享受品味時光</p>
+            <div class="age-warning">⚠️ 未滿18歲請勿飲酒，飲酒過量有害健康</div>
+            <nav class="nav-tabs">
+                <button class="nav-btn active" data-page="browse" type="button">📖 瀏覽酒譜</button>
+                <button class="nav-btn" data-page="add" type="button">➕ 新增酒譜</button>
+                <button class="nav-btn" data-page="settings" type="button">⚙️ 設定</button>
+            </nav>
+        </header>
+
+        <!-- 瀏覽區 -->
+        <div class="page active" id="browsePage">
+            <div class="filters">
+                <div class="filter-row">
+                    <input type="text" id="searchInput" placeholder="🔍 搜尋雞尾酒、基酒或標籤..." />
+                    <select id="categorySelect">
+                        <option value="">📋 全部分類</option>
+                    </select>
+                    <div class="view-toggle">
+                        <button class="view-btn active" data-view="grid" type="button">網格</button>
+                        <button class="view-btn" data-view="list" type="button">列表</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="stats" id="stats">載入中...</div>
+            <div id="cocktailsContainer" class="cocktails-grid">
+                <div class="loading">正在載入雞尾酒資料</div>
+            </div>
+        </div>
+
+        <!-- 新增區 -->
+        <div class="page" id="addPage">
+            <div class="add-cocktail-form">
+                <div class="success-message" id="successMessage">✅ 雞尾酒譜新增成功！</div>
+
+                <form id="addCocktailForm">
+                    <div class="form-section">
+                        <h3>� 基本資訊</h3>
+                        <div class="form-group">
+                            <label for="cocktailTitle">雞尾酒名稱 *</label>
+                            <input type="text" id="cocktailTitle" required placeholder="例如：莫希托、馬丁尼" />
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="cocktailCategory">分類</label>
+                                <select id="cocktailCategory">
+                                    <option value="">選擇分類</option>
+                                    <option value="經典雞尾酒">經典雞尾酒</option>
+                                    <option value="無酒精調飲">無酒精特調</option>
+                                    <option value="特調雞尾酒">特調雞尾酒</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="glassType">杯型</label>
+                                <select id="glassType">
+                                    <option value="">選擇杯型</option>
+                                    <option value="馬丁尼杯">馬丁尼杯</option>
+                                    <option value="威士忌杯">威士忌杯</option>
+                                    <option value="高球杯">高球杯</option>
+                                    <option value="岩石杯">岩石杯</option>
+                                    <option value="香檳杯">香檳杯</option>
+                                    <option value="颶風杯">颶風杯</option>
+                                    <option value="雞尾酒杯">雞尾酒杯</option>
+                                    <option value="柯林杯">柯林杯</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="alcoholContent">酒精濃度</label>
+                                <select id="alcoholContent">
+                                    <option value="">選擇濃度</option>
+                                    <option value="低">濃度低</option>
+                                    <option value="中">濃度中</option>
+                                    <option value="高">濃度高</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="difficulty">難度等級</label>
+                                <select id="difficulty">
+                                    <option value="">選擇難度</option>
+                                    <option value="簡單">簡單</option>
+                                    <option value="中等">中等</option>
+                                    <option value="困難">困難</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="servings">份量</label>
+                                <input type="number" id="servings" min="1" placeholder="1" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <h3>🏷️ 標籤</h3>
+                        <div class="tags-input">
+                            <input type="text" id="tagsInput" placeholder="輸入標籤後按 Enter（例如：清爽、夏日）" />
+                            <div class="tags-display" id="tagsDisplay"></div>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <h3>🥃 配料清單</h3>
+                        <div class="ingredients-list" id="ingredientsList">
+                            <div class="ingredient-item">
+                                <input type="text" placeholder="例如：白蘭地 60ml" required />
+                                <button type="button" class="remove-btn"
+                                    onclick="app.removeIngredient(this)">移除</button>
+                            </div>
+                        </div>
+                        <button type="button" class="add-btn" onclick="app.addIngredient()">➕ 新增配料</button>
+                    </div>
+
+                    <div class="form-section">
+                        <h3>🍴 調製方法</h3>
+                        <div class="instructions-list" id="instructionsList">
+                            <div class="instruction-item">
+                                <span style="font-weight: bold; min-width: 30px;">1.</span>
+                                <input type="text" placeholder="詳細描述第一個步驟" required />
+                                <button type="button" class="remove-btn"
+                                    onclick="app.removeInstruction(this)">移除</button>
+                            </div>
+                        </div>
+                        <button type="button" class="add-btn" onclick="app.addInstruction()">➕ 新增步驟</button>
+                    </div>
+
+                    <div class="form-section">
+                        <h3>🖼️ 上傳圖片（選填）</h3>
+                        <div class="form-group">
+                            <label for="cocktailImageFile">選擇圖片檔案</label>
+                            <input type="file" id="cocktailImageFile" accept="image/*" />
+                            <div id="addImagePreview" style="margin-top: 12px;"></div>
+                        </div>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary" onclick="app.clearForm()">清空表單</button>
+                        <button type="submit" class="btn btn-primary">💾 儲存酒譜</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- 設定區 -->
+        <div class="page" id="settingsPage">
+            <div class="form-section">
+                <h3>📊 儲存統計</h3>
+                <div id="storageStats" style="color: white; line-height: 1.6;">載入中...</div>
+            </div>
+
+            <div class="form-section">
+                <h3>💾 資料管理</h3>
+                <div style="display: flex; flex-direction: column; gap: 12px;">
+                    <input type="file" id="csvImportFile" accept=".csv" style="display: none;">
+                    <button class="btn btn-primary" onclick="document.getElementById('csvImportFile').click()">📥 匯入 CSV
+                        檔案</button>
+                    <button class="btn btn-secondary" onclick="app.exportData()">📤 區出所有資料</button>
+                    <button class="btn btn-danger" onclick="app.confirmClearData()">🗑️ 清除所有資料</button>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h3>ℹ️ 應用程式資訊</h3>
+                <div style="color: rgba(255,255,255,0.8); line-height: 1.6;">
+                    <p><strong>版本：</strong> 1.0.0 PWA</p>
+                    <p><strong>儲存方式：</strong> IndexedDB（離線可用）</p>
+                    <p><strong>支援功能：</strong> 離線瀏覽、圖片儲存、資料匯出入</p>
+                    <p><strong>相容性：</strong> 現代瀏覽器（Chrome、Safari、Edge）</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 編輯抽屜 -->
+    <aside id="editDrawer" class="drawer hidden" aria-hidden="true">
+        <div class="drawer-header">
+            <h3>編輯酒譜</h3>
+            <button id="closeDrawer" class="btn btn-secondary" type="button">關閉</button>
+        </div>
+        <form id="editForm" class="edit-form">
+            <label>標題</label>
+            <input name="title" type="text" required>
+            <label>分類</label>
+            <input name="category" type="text">
+            <label>杯型</label>
+            <input name="glass_type" type="text">
+            <label>酒精濃度</label>
+            <input name="alcohol_content" type="text">
+            <label>難度等級</label>
+            <select name="difficulty">
+                <option value="">選擇難度</option>
+                <option value="簡單">簡單</option>
+                <option value="中等">中等</option>
+                <option value="困難">困難</option>
+            </select>
+            <label>標籤（分號;分隔）</label>
+            <input name="tags" type="text">
+            <!-- ★ 說明文字改為 + 分隔 -->
+            <label>配料（每項 + 分隔）</label>
+            <textarea name="ingredients" rows="3"></textarea>
+            <label>調製方法（步驟>換行）</label>
+            <textarea name="instructions" rows="5"></textarea>
+            <div class="grid-2">
+                <div>
+                    <label>份量</label>
+                    <input name="servings" type="number" min="1">
+                </div>
+            </div>
+            <label>更換圖片</label>
+            <input id="imageFile" name="image_file" type="file" accept="image/*">
+            <div id="imagePreview" style="margin:8px 0;"></div>
+            <div class="drawer-actions">
+                <button id="saveCocktail" class="btn btn-primary" type="button">儲存</button>
+                <button id="deleteCocktail" class="btn btn-danger" type="button">刪除</button>
+            </div>
+        </form>
+    </aside>
+
+    <!-- 隱藏的檔案輸入 -->
+    <input type="file" id="hiddenFileInput" accept=".csv" style="display: none;">
+
+    <script>
+        // 雞尾酒範例資料（★ ingredients 分隔符改為「+」）
+        window.SAMPLE_CSV = `id,title,category,tags,ingredients,instructions,glass_type,alcohol_content,difficulty,servings,image_url
+C001,莫希托,朗姆酒調酒,清爽;薄荷;夏日,白朗姆酒 60ml+新鮮薄荷葉 10片+萊姆汁 30ml+糖漿 20ml+蘇打水 適量+冰塊 適量,在高球杯中輕壓薄荷葉>加入糖漿和萊姆汁>倒入白朗姆酒>加滿冰塊>注入蘇打水>輕攪拌>薄荷葉裝飾,高球杯,12.5,簡單,1,
+C002,馬丁尼,琴酒調酒,經典;乾型;優雅,琴酒 60ml+乾苦艾酒 10ml+橄欖 1顆,在調酒器中加入冰塊>倒入琴酒和苦艾酒>攪拌30秒>過濾倒入馬丁尼杯>橄欖裝飾,馬丁尼杯,28.5,中等,1,
+C003,瑪格麗特,龍舌蘭調酒,經典;墨西哥;石灰,龍舌蘭酒 60ml+橙酒 30ml+萊姆汁 30ml+鹽 適量,杯緣沾鹽>在雪克杯中加入冰塊>倒入所有材料>搖盪15秒>過濾倒入雞尾酒杯>萊姆片裝飾,雞尾酒杯,22.3,簡單,1,`;
+
+        // 手機端資料儲存管理器
+        class MobileStorageManager {
+            constructor() {
+                this.dbName = 'CocktailDB';
+                this.dbVersion = 1;
+                this.db = null;
+                this.imageStore = 'images';
+                this.cocktailStore = 'cocktails';
+            }
+
+            async init() {
+                return new Promise((resolve, reject) => {
+                    const request = indexedDB.open(this.dbName, this.dbVersion);
+                    request.onerror = () => reject(request.error);
+                    request.onsuccess = () => { this.db = request.result; resolve(this.db); };
+                    request.onupgradeneeded = (event) => {
+                        const db = event.target.result;
+                        if (!db.objectStoreNames.contains(this.cocktailStore)) {
+                            const cocktailStore = db.createObjectStore(this.cocktailStore, { keyPath: 'id', autoIncrement: false });
+                            cocktailStore.createIndex('title', 'title', { unique: false });
+                            cocktailStore.createIndex('category', 'category', { unique: false });
+                            cocktailStore.createIndex('tags', 'tags', { unique: false });
+                        }
+                        if (!db.objectStoreNames.contains(this.imageStore)) {
+                            db.createObjectStore(this.imageStore, { keyPath: 'id', autoIncrement: false });
+                        }
+                    };
+                });
+            }
+
+            async saveCocktail(cocktail) {
+                const tx = this.db.transaction([this.cocktailStore], 'readwrite');
+                const store = tx.objectStore(this.cocktailStore);
+                return new Promise((resolve, reject) => {
+                    const req = store.put(cocktail);
+                    req.onsuccess = () => resolve(req.result);
+                    req.onerror = () => reject(req.error);
+                });
+            }
+
+            async getAllCocktails() {
+                const tx = this.db.transaction([this.cocktailStore], 'readonly');
+                const store = tx.objectStore(this.cocktailStore);
+                return new Promise((resolve, reject) => {
+                    const req = store.getAll();
+                    req.onsuccess = () => resolve(req.result || []);
+                    req.onerror = () => reject(req.error);
+                });
+            }
+
+            async deleteCocktail(id) {
+                const tx = this.db.transaction([this.cocktailStore], 'readwrite');
+                const store = tx.objectStore(this.cocktailStore);
+                return new Promise((resolve, reject) => {
+                    const req = store.delete(id);
+                    req.onsuccess = () => resolve();
+                    req.onerror = () => reject(req.error);
+                });
+            }
+
+            async saveImage(imageFile, cocktailId) {
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = async (e) => {
+                        try {
+                            const imageData = { id: cocktailId, data: e.target.result, type: imageFile.type, name: imageFile.name, size: imageFile.size, timestamp: Date.now() };
+                            const tx = this.db.transaction([this.imageStore], 'readwrite');
+                            const store = tx.objectStore(this.imageStore);
+                            const req = store.put(imageData);
+                            req.onsuccess = () => resolve({ ok: true, id: cocktailId, dataUrl: e.target.result });
+                            req.onerror = () => reject(req.error);
+                        } catch (error) { reject(error); }
+                    };
+                    reader.onerror = () => reject(reader.error);
+                    reader.readAsDataURL(imageFile);
+                });
+            }
+
+            async getImage(cocktailId) {
+                const tx = this.db.transaction([this.imageStore], 'readonly');
+                const store = tx.objectStore(this.imageStore);
+                return new Promise((resolve, reject) => {
+                    const req = store.get(cocktailId);
+                    req.onsuccess = () => resolve(req.result ? req.result.data : null);
+                    req.onerror = () => reject(req.error);
+                });
+            }
+
+            async clearAllData() {
+                const tx = this.db.transaction([this.cocktailStore, this.imageStore], 'readwrite');
+                const c = tx.objectStore(this.cocktailStore);
+                const i = tx.objectStore(this.imageStore);
+                return Promise.all([
+                    new Promise((res, rej) => { const r = c.clear(); r.onsuccess = () => res(); r.onerror = () => rej(r.error); }),
+                    new Promise((res, rej) => { const r = i.clear(); r.onsuccess = () => res(); r.onerror = () => rej(r.error); })
+                ]);
+            }
+
+            async getStorageStats() {
+                const cocktails = await this.getAllCocktails();
+                const tx = this.db.transaction([this.imageStore], 'readonly');
+                const store = tx.objectStore(this.imageStore);
+                return new Promise((resolve, reject) => {
+                    const req = store.getAll();
+                    req.onsuccess = () => {
+                        const images = req.result || [];
+                        const totalImageSize = images.reduce((s, img) => s + (img.size || 0), 0);
+                        resolve({ cocktailCount: cocktails.length, imageCount: images.length, totalImageSize, formattedImageSize: this.formatBytes(totalImageSize) });
+                    };
+                    req.onerror = () => reject(req.error);
+                });
+            }
+
+            formatBytes(bytes, decimals = 2) {
+                if (bytes === 0) return '0 Bytes';
+                const k = 1024, dm = decimals < 0 ? 0 : decimals, sizes = ['Bytes', 'KB', 'MB', 'GB'];
+                const i = Math.floor(Math.log(bytes) / Math.log(k));
+                return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+            }
+
+            async exportToCSV() {
+                const cocktails = await this.getAllCocktails();
+                const headers = ["id", "title", "category", "tags", "ingredients", "instructions", "glass_type", "alcohol_content", "difficulty", "servings", "image_url"];
+                const escapeCsv = (str) => {
+                    if (str == null) return "";
+                    str = String(str);
+                    if (str.includes(",") || str.includes("\"") || str.includes("\n") || str.includes("\r")) return `"${str.replace(/"/g, '""')}"`;
+                    return str;
+                };
+                const lines = [headers.join(",")];
+                for (const c of cocktails) lines.push(headers.map(h => escapeCsv(c[h] || '')).join(","));
+                const bom = "\uFEFF";
+                const csvContent = bom + lines.join("\r\n");
+                return new Blob([csvContent], { type: "text/csv;charset=utf-8" });
+            }
+
+            async importFromCSV(csvText) {
+                const Papa = window.Papa;
+                if (!Papa) throw new Error('PapaParse 尚未載入');
+                const parsed = Papa.parse(csvText, { header: true, skipEmptyLines: true });
+                const cocktails = parsed.data || [];
+                const errors = [];
+                for (const [index, cocktail] of cocktails.entries()) {
+                    try {
+                        if (!cocktail.id) cocktail.id = 'C' + String(index + 1).padStart(3, '0');
+                        // ★ 舊資料相容：把 '|' 轉為 '+'
+                        if (typeof cocktail.ingredients === 'string') {
+                            cocktail.ingredients = cocktail.ingredients.replace(/\|/g, '+');
+                        }
+                        await this.saveCocktail(cocktail);
+                    } catch (error) {
+                        errors.push({ index, error: error.message });
+                    }
+                }
+                return { success: cocktails.length - errors.length, errors: errors.length, errorDetails: errors };
+            }
+        }
+
+        // PWA 主應用程式
+        class CocktailApp {
+            constructor() {
+                this.storage = new MobileStorageManager();
+                this.cocktails = [];
+                this.filteredCocktails = [];
+                this.currentView = 'grid';
+                this.editTargetId = null;
+                this.pages = {
+                    browse: document.getElementById('browsePage'),
+                    add: document.getElementById('addPage'),
+                    settings: document.getElementById('settingsPage'),
+                };
+                this.navButtons = Array.from(document.querySelectorAll('.nav-btn'));
+                this.successMessage = null;
+                this.init();
+            }
+
+            norm(v) { return (v == null ? "" : String(v)).trim().toLowerCase(); }
+
+            async init() {
+                try {
+                    await this.storage.init();
+                    await this.loadCocktails();
+                    this.setupEventListeners();
+                    this.setupNavTabs();
+                    this.setupAddForm();
+                    this.setupEditDrawer();
+                    this.setupPWAFeatures();
+                    this.render();
+                    await this.updateStorageStats();
+                } catch (error) {
+                    console.error('App 初始化失敗:', error);
+                    this.showError('應用程式初始化失敗，請重新整理頁面。');
+                }
+            }
+
+            async loadCocktails() {
+                try {
+                    this.cocktails = await this.storage.getAllCocktails();
+
+                    // ★ 一次性遷移：把任何舊的 '|' 分隔轉為 '+'
+                    let migrated = 0;
+                    for (const c of this.cocktails) {
+                        if (typeof c.ingredients === 'string' && c.ingredients.includes('|')) {
+                            c.ingredients = c.ingredients.replace(/\|/g, '+');
+                            await this.storage.saveCocktail(c);
+                            migrated++;
+                        }
+                    }
+                    if (migrated) console.log(`已遷移 ${migrated} 筆配料分隔符至 "+"`);
+
+                    this.filteredCocktails = [...this.cocktails];
+                    if (this.cocktails.length === 0) {
+                        await this.loadSampleData();
+                    }
+                    this.updateCategories();
+                } catch (error) {
+                    console.error('載入雞尾酒資料失敗:', error);
+                    this.showError('載入資料失敗');
+                }
+            }
+
+            async loadSampleData() {
+                try {
+                    const csvText = window.SAMPLE_CSV;
+                    if (csvText) {
+                        const result = await this.storage.importFromCSV(csvText);
+                        console.log('範例資料載入結果:', result);
+                        this.cocktails = await this.storage.getAllCocktails();
+                        this.filteredCocktails = [...this.cocktails];
+                    }
+                } catch (error) {
+                    console.error('載入範例資料失敗:', error);
+                }
+            }
+
+            setupPWAFeatures() {
+                this.updateOnlineStatus();
+                window.addEventListener('online', () => this.updateOnlineStatus());
+                window.addEventListener('offline', () => this.updateOnlineStatus());
+                window.addEventListener('beforeinstallprompt', (e) => {
+                    e.preventDefault();
+                    this.deferredPrompt = e;
+                    document.getElementById('installPrompt').style.display = 'block';
+                });
+                document.getElementById('installBtn').addEventListener('click', async () => {
+                    if (this.deferredPrompt) {
+                        this.deferredPrompt.prompt();
+                        await this.deferredPrompt.userChoice;
+                        document.getElementById('installPrompt').style.display = 'none';
+                        this.deferredPrompt = null;
+                    }
+                });
+            }
+
+            updateOnlineStatus() {
+                const offlineIndicator = document.getElementById('offlineIndicator');
+                offlineIndicator.style.display = navigator.onLine ? 'none' : 'block';
+            }
+
+            setupEventListeners() {
+                const searchInput = document.getElementById('searchInput');
+                const categorySelect = document.getElementById('categorySelect');
+                const viewButtons = document.querySelectorAll('.view-btn');
+
+                if (searchInput) {
+                    const onSearch = () => this.filterCocktails();
+                    searchInput.addEventListener('input', onSearch);
+                    searchInput.addEventListener('compositionend', onSearch);
+                }
+                if (categorySelect) categorySelect.addEventListener('change', () => this.filterCocktails());
+                viewButtons.forEach((btn) => {
+                    btn.addEventListener('click', (e) => {
+                        viewButtons.forEach((b) => b.classList.remove('active'));
+                        e.currentTarget.classList.add('active');
+                        this.currentView = e.currentTarget.dataset.view;
+                        this.updateViewClass();
+                    });
+                });
+
+                document.getElementById('btnImport').addEventListener('click', () => document.getElementById('csvImportFile').click());
+                document.getElementById('btnExport').addEventListener('click', () => this.exportData());
+                document.getElementById('btnClearData').addEventListener('click', () => this.confirmClearData());
+                document.getElementById('csvImportFile').addEventListener('change', (e) => this.handleCSVImport(e));
+            }
+
+            setupNavTabs() {
+                this.navButtons.forEach((btn) => {
+                    btn.addEventListener('click', () => {
+                        this.navButtons.forEach((b) => b.classList.remove('active'));
+                        btn.classList.add('active');
+                        const pageKey = btn.dataset.page;
+                        Object.values(this.pages).forEach((p) => p.classList.remove('active'));
+                        if (this.pages[pageKey]) this.pages[pageKey].classList.add('active');
+                        if (pageKey === 'add' && this.successMessage) this.successMessage.style.display = 'none';
+                        if (pageKey === 'settings') this.updateStorageStats();
+                    });
+                });
+            }
+
+            setupAddForm() {
+                const form = document.getElementById('addCocktailForm');
+                this.successMessage = document.getElementById('successMessage');
+                form.addEventListener('submit', async (e) => { e.preventDefault(); await this.handleAddCocktail(); });
+
+                const tagsInput = document.getElementById('tagsInput');
+                const tagsDisplay = document.getElementById('tagsDisplay');
+                tagsInput.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' && tagsInput.value.trim()) {
+                        e.preventDefault();
+                        const tag = tagsInput.value.trim();
+                        const chip = document.createElement('span');
+                        chip.className = 'tag-chip';
+                        chip.dataset.tag = tag;
+                        chip.textContent = `#${tag} ×`;
+                        chip.addEventListener('click', () => chip.remove());
+                        tagsDisplay.appendChild(chip);
+                        tagsInput.value = '';
+                    }
+                });
+
+                const addImageInput = document.getElementById('cocktailImageFile');
+                const addImagePreview = document.getElementById('addImagePreview');
+                addImageInput.addEventListener('change', (e) => {
+                    addImagePreview.innerHTML = '';
+                    const file = e.target.files[0];
+                    if (file) {
+                        const url = URL.createObjectURL(file);
+                        const img = document.createElement('img');
+                        img.src = url;
+                        Object.assign(img.style, { maxWidth: '200px', maxHeight: '150px', borderRadius: '8px', objectFit: 'cover' });
+                        addImagePreview.appendChild(img);
+                    }
+                });
+            }
+
+            setupEditDrawer() {
+                const drawer = document.getElementById('editDrawer');
+                const closeBtn = document.getElementById('closeDrawer');
+                const saveBtn = document.getElementById('saveCocktail');
+                const deleteBtn = document.getElementById('deleteCocktail');
+
+                closeBtn.addEventListener('click', () => {
+                    drawer.classList.add('hidden');
+                    drawer.setAttribute('aria-hidden', 'true');
+                    this.editTargetId = null;
+                });
+                saveBtn.addEventListener('click', async (e) => { e.preventDefault(); await this.saveEditedCocktail(); });
+                deleteBtn.addEventListener('click', async (e) => {
+                    e.preventDefault();
+                    if (confirm('確定要刪除這個酒譜嗎？')) await this.deleteCocktail();
+                });
+
+                document.getElementById('imageFile').addEventListener('change', (e) => {
+                    const preview = document.getElementById('imagePreview');
+                    preview.innerHTML = '';
+                    const file = e.target.files[0];
+                    if (file) {
+                        const url = URL.createObjectURL(file);
+                        const img = document.createElement('img');
+                        img.src = url;
+                        Object.assign(img.style, { maxWidth: '100%', borderRadius: '8px' });
+                        preview.appendChild(img);
+                        const caption = document.createElement('div');
+                        caption.textContent = '新上傳的圖片預覽';
+                        Object.assign(caption.style, { fontSize: '.9rem', color: '#666', marginTop: '8px' });
+                        preview.appendChild(caption);
+                    }
+                });
+            }
+
+            async handleAddCocktail() {
+                try {
+                    const title = document.getElementById('cocktailTitle').value.trim();
+                    const category = document.getElementById('cocktailCategory').value.trim();
+                    const glassType = document.getElementById('glassType').value.trim();
+                    const alcoholContent = document.getElementById('alcoholContent').value.trim();
+                    const difficulty = document.getElementById('difficulty').value.trim();
+                    const servings = document.getElementById('servings').value.trim();
+
+                    const tagsInput = document.getElementById('tagsInput').value.trim();
+                    const chips = Array.from(document.querySelectorAll('#tagsDisplay .tag-chip')).map((x) => x.dataset.tag);
+                    const tags = [...chips, ...(tagsInput ? [tagsInput] : [])].join(';');
+
+                    // ★ 用 '+' 串接配料
+                    const ingredients = Array.from(document.querySelectorAll('#ingredientsList .ingredient-item input'))
+                        .map((i) => i.value.trim()).filter(Boolean).join('+');
+
+                    const instructions = Array.from(document.querySelectorAll('#instructionsList .instruction-item input'))
+                        .map((i) => i.value.trim()).filter(Boolean).join('>');
+
+                    if (!title) { alert('請輸入雞尾酒名稱'); return; }
+                    if (!ingredients) { alert('請至少輸入一項配料'); return; }
+                    if (!instructions) { alert('請至少輸入一個步驟'); return; }
+
+                    const newId = this.makeId();
+                    let imageUrl = '';
+                    const imageFile = document.getElementById('cocktailImageFile').files[0];
+                    if (imageFile) {
+                        try { await this.storage.saveImage(imageFile, newId); imageUrl = newId; }
+                        catch (err) { console.error('圖片上傳錯誤:', err); alert('圖片上傳失敗；您仍可稍後在編輯中補上圖片。'); }
+                    }
+
+                    const newCocktail = { id: newId, title, category, tags, ingredients, instructions, glass_type: glassType, alcohol_content: alcoholContent || '', difficulty: difficulty || '', servings: servings || '', image_url: imageUrl };
+                    await this.storage.saveCocktail(newCocktail);
+                    await this.loadCocktails();
+                    this.render();
+
+                    this.successMessage.style.display = 'block';
+                    const browseBtn = this.navButtons.find((b) => b.dataset.page === 'browse');
+                    browseBtn?.click();
+                    this.clearForm();
+                } catch (error) {
+                    console.error('新增酒譜失敗:', error);
+                    alert('新增酒譜失敗：' + error.message);
+                }
+            }
+
+            makeId() { return 'C' + String(this.cocktails.length + 1).padStart(3, '0'); }
+
+            async editCocktail(id) {
+                const cocktail = this.cocktails.find(r => r.id === id);
+                if (!cocktail) return;
+                this.editTargetId = id;
+                const drawer = document.getElementById('editDrawer');
+                const form = document.getElementById('editForm');
+
+                form.title.value = cocktail.title || '';
+                form.category.value = cocktail.category || '';
+                form.glass_type.value = cocktail.glass_type || '';
+                form.alcohol_content.value = cocktail.alcohol_content || '';
+                form.difficulty.value = cocktail.difficulty || '';
+                form.tags.value = cocktail.tags || '';
+
+                // ★ 編輯時用換行顯示，每項一行（從 '+' 還原）
+                form.ingredients.value = (cocktail.ingredients || '').replace(/\+/g, '\n');
+                form.instructions.value = (cocktail.instructions || '').replace(/>/g, '\n');
+                form.servings.value = cocktail.servings || '';
+
+                const preview = document.getElementById('imagePreview');
+                preview.innerHTML = '';
+                if (cocktail.image_url) {
+                    try {
+                        const src = await this.storage.getImage(cocktail.id);
+                        if (src) {
+                            const img = document.createElement('img');
+                            img.src = src;
+                            Object.assign(img.style, { maxWidth: '100%', borderRadius: '8px', marginBottom: '8px' });
+                            preview.appendChild(img);
+                            const caption = document.createElement('div');
+                            caption.textContent = '目前的圖片';
+                            Object.assign(caption.style, { fontSize: '.9rem', color: '#666' });
+                            preview.appendChild(caption);
+                        }
+                    } catch (error) { console.error('載入圖片失敗:', error); }
+                }
+
+                drawer.classList.remove('hidden');
+                drawer.setAttribute('aria-hidden', 'false');
+            }
+
+            async saveEditedCocktail() {
+                try {
+                    const form = document.getElementById('editForm');
+                    const index = this.cocktails.findIndex(r => r.id === this.editTargetId);
+                    if (index === -1) return;
+
+                    let imageUrl = this.cocktails[index].image_url;
+                    const imageFile = document.getElementById('imageFile').files[0];
+                    if (imageFile) {
+                        try { await this.storage.saveImage(imageFile, this.editTargetId); imageUrl = this.editTargetId; }
+                        catch (err) { console.error('圖片上傳錯誤:', err); alert('圖片上傳失敗；將沿用原圖片。'); }
+                    }
+
+                    const updatedCocktail = {
+                        ...this.cocktails[index],
+                        title: form.title.value.trim(),
+                        category: form.category.value.trim(),
+                        glass_type: form.glass_type.value.trim(),
+                        alcohol_content: form.alcohol_content.value || '',
+                        difficulty: form.difficulty.value || '',
+                        tags: form.tags.value.trim(),
+                        // ★ 將換行合併為 '+'
+                        ingredients: form.ingredients.value.trim().replace(/\n/g, '+'),
+                        instructions: form.instructions.value.trim().replace(/\n/g, '>'),
+                        servings: form.servings.value || '',
+                        image_url: imageUrl,
+                    };
+
+                    await this.storage.saveCocktail(updatedCocktail);
+                    await this.loadCocktails();
+                    this.render();
+
+                    const drawer = document.getElementById('editDrawer');
+                    drawer.classList.add('hidden');
+                    drawer.setAttribute('aria-hidden', 'true');
+                    this.editTargetId = null;
+                } catch (error) {
+                    console.error('儲存編輯失敗:', error);
+                    alert('儲存失敗：' + error.message);
+                }
+            }
+
+            async deleteCocktail() {
+                try {
+                    await this.storage.deleteCocktail(this.editTargetId);
+                    await this.loadCocktails();
+                    this.render();
+                    const drawer = document.getElementById('editDrawer');
+                    drawer.classList.add('hidden');
+                    drawer.setAttribute('aria-hidden', 'true');
+                    this.editTargetId = null;
+                } catch (error) {
+                    console.error('刪除失敗:', error);
+                    alert('刪除失敗：' + error.message);
+                }
+            }
+
+            addIngredient() {
+                const wrap = document.getElementById('ingredientsList');
+                const div = document.createElement('div');
+                div.className = 'ingredient-item';
+                div.innerHTML = `
+                    <input type="text" placeholder="例如：琴酒 60ml" required />
+                    <button type="button" class="remove-btn">移除</button>`;
+                div.querySelector('.remove-btn').addEventListener('click', () => div.remove());
+                wrap.appendChild(div);
+            }
+            removeIngredient(btn) { btn.closest('.ingredient-item')?.remove(); }
+
+            addInstruction() {
+                const wrap = document.getElementById('instructionsList');
+                const idx = wrap.querySelectorAll('.instruction-item').length + 1;
+                const div = document.createElement('div');
+                div.className = 'instruction-item';
+                div.innerHTML = `
+                    <span style="font-weight:bold;min-width:30px;">${idx}.</span>
+                    <input type="text" placeholder="詳細描述步驟" required />
+                    <button type="button" class="remove-btn">移除</button>`;
+                div.querySelector('.remove-btn').addEventListener('click', () => {
+                    div.remove();
+                    Array.from(wrap.querySelectorAll('.instruction-item span')).forEach((s, i) => (s.textContent = (i + 1) + '.'));
+                });
+                wrap.appendChild(div);
+            }
+            removeInstruction(btn) { btn.closest('.instruction-item')?.remove(); }
+
+            clearForm() {
+                document.getElementById('addCocktailForm').reset();
+                document.getElementById('tagsDisplay').innerHTML = '';
+                document.getElementById('addImagePreview').innerHTML = '';
+                document.getElementById('ingredientsList').innerHTML = `
+                    <div class="ingredient-item">
+                        <input type="text" placeholder="例如：琴酒 60ml" required />
+                        <button type="button" class="remove-btn" onclick="app.removeIngredient(this)">移除</button>
+                    </div>`;
+                document.getElementById('instructionsList').innerHTML = `
+                    <div class="instruction-item">
+                        <span style="font-weight: bold; min-width: 30px;">1.</span>
+                        <input type="text" placeholder="詳細描述第一個步驟" required />
+                        <button type="button" class="remove-btn" onclick="app.removeInstruction(this)">移除</button>
+                    </div>`;
+            }
+
+            updateCategories() {
+                const categorySelect = document.getElementById('categorySelect');
+                if (!categorySelect) return;
+                const categories = [...new Set(this.cocktails.map(r => (r.category || '').trim()).filter(Boolean))].sort();
+                categorySelect.querySelectorAll('option:not(:first-child)').forEach(o => o.remove());
+                categories.forEach((category) => {
+                    const option = document.createElement('option');
+                    option.value = category;
+                    option.textContent = category;
+                    categorySelect.appendChild(option);
+                });
+            }
+
+            filterCocktails() {
+                const searchTerm = this.norm(document.getElementById('searchInput')?.value || '');
+                const selectedCategoryRaw = document.getElementById('categorySelect')?.value || '';
+                const selectedCategory = (selectedCategoryRaw || '').trim();
+                if (!Array.isArray(this.cocktails)) this.cocktails = [];
+
+                this.filteredCocktails = this.cocktails.filter((r) => {
+                    const title = this.norm(r?.title);
+                    const tags = this.norm(r?.tags);
+                    const ingredients = this.norm(r?.ingredients);
+                    const category = (r?.category || '').trim();
+                    const matchesSearch = !searchTerm || title.includes(searchTerm) || tags.includes(searchTerm) || ingredients.includes(searchTerm);
+                    const matchesCategory = !selectedCategory || category === selectedCategory;
+                    return matchesSearch && matchesCategory;
+                });
+
+                this.render();
+            }
+
+            updateViewClass() {
+                const container = document.getElementById('cocktailsContainer');
+                container.className = this.currentView === 'grid' ? 'cocktails-grid' : 'cocktails-list';
+            }
+
+            render() {
+                this.updateStats();
+                this.renderCocktails();
+                this.updateViewClass();
+            }
+
+            updateStats() {
+                const stats = document.getElementById('stats');
+                const total = this.cocktails.length;
+                const showing = this.filteredCocktails.length;
+                stats.textContent = `顯示 ${showing} / ${total} 道雞尾酒譜`;
+            }
+
+            renderCocktails() {
+                const container = document.getElementById('cocktailsContainer');
+                if (this.filteredCocktails.length === 0) {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <div class="icon">🔍</div>
+                            <h3>找不到符合條件的雞尾酒譜</h3>
+                            <p>試著調整搜尋關鍵字或分類篩選</p>
+                        </div>`;
+                    return;
+                }
+
+                container.innerHTML = this.filteredCocktails.map((cocktail) => {
+                    const tagsHtml = cocktail.tags ? cocktail.tags.split(';').map((tag) => `<span class="tag">${tag.trim()}</span>`).join('') : '';
+                    const glassType = cocktail.glass_type || '';
+                    const alcoholContent = cocktail.alcohol_content || '';
+                    const difficulty = cocktail.difficulty || '';
+                    return `
+                    <div class="cocktail-card">
+                        <div class="cocktail-image">
+                            ${cocktail.image_url ? `<img data-img="${cocktail.id}" alt="${cocktail.title}">` : '🍸'}
+                        </div>
+                        <div class="cocktail-content">
+                            <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px;">
+                                <h3 class="cocktail-title">${cocktail.title || ''}</h3>
+                                <button onclick="app.editCocktail('${cocktail.id}')" class="btn" style="font-size:.8rem; padding:4px 8px;">編輯</button>
+                            </div>
+                            <div class="cocktail-meta">
+                                ${glassType ? `<span class="meta-item">🥃 ${glassType}</span>` : ''}
+                                ${alcoholContent ? `<span class="meta-item">🌡️ ${alcoholContent}</span>` : ''}
+                                ${difficulty ? `<span class="meta-item">⭐ ${difficulty}</span>` : ''}
+                                <span class="meta-item">👥 ${cocktail.servings || '1'} 杯</span>
+                            </div>
+                            ${tagsHtml ? `<div class="cocktail-tags">${tagsHtml}</div>` : ''}
+                            <div class="cocktail-details">
+                                <details>
+                                    <summary>🥃 配料清單</summary>
+                                    <div class="ingredients-list">
+                                        ${(cocktail.ingredients || '').split('+').map((i) => `<div>• ${i.trim()}</div>`).join('')}
+                                    </div>
+                                </details>
+                                <details>
+                                    <summary>🍴 調製方法</summary>
+                                    <div class="instructions-list">
+                                        ${(cocktail.instructions || '').split('>').map((s) => `<div class="instruction">${s.trim()}</div>`).join('')}
+                                    </div>
+                                </details>
+                            </div>
+                        </div>
+                    </div>`;
+                }).join('');
+
+                // 非同步載入圖片
+                this.filteredCocktails.forEach(async (cocktail) => {
+                    if (!cocktail.image_url) return;
+                    const imgEl = container.querySelector(`img[data-img="${cocktail.id}"]`);
+                    if (!imgEl) return;
+                    try {
+                        const src = await this.storage.getImage(cocktail.id);
+                        if (src) imgEl.src = src;
+                        imgEl.removeAttribute('data-img');
+                    } catch (e) { console.warn('圖片載入失敗:', cocktail.image_url, e); }
+                });
+            }
+
+            async updateStorageStats() {
+                try {
+                    const stats = await this.storage.getStorageStats();
+                    const statsDiv = document.getElementById('storageStats');
+                    if (statsDiv) {
+                        statsDiv.innerHTML = `
+                            <p><strong>酒譜數量：</strong> ${stats.cocktailCount} 個</p>
+                            <p><strong>圖片數量：</strong> ${stats.imageCount} 張</p>
+                            <p><strong>圖片大小：</strong> ${stats.formattedImageSize}</p>
+                            <p><strong>最後更新：</strong> ${new Date().toLocaleString('zh-TW')}</p>`;
+                    }
+                } catch (error) { console.error('更新儲存統計失敗:', error); }
+            }
+
+            async exportData() {
+                try {
+                    const blob = await this.storage.exportToCSV();
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `cocktails-${new Date().toISOString().split('T')[0]}.csv`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    alert('資料匯出成功！');
+                } catch (error) {
+                    console.error('匯出失敗:', error);
+                    alert('匯出失敗：' + error.message);
+                }
+            }
+
+            async handleCSVImport(event) {
+                try {
+                    const file = event.target.files[0];
+                    if (!file) return;
+                    const text = await file.text();
+                    const result = await this.storage.importFromCSV(text);
+                    await this.loadCocktails();
+                    this.render();
+                    await this.updateStorageStats();
+                    alert(`匯入完成！成功：${result.success} 筆，失敗：${result.errors} 筆`);
+                    event.target.value = '';
+                } catch (error) {
+                    console.error('匯入失敗:', error);
+                    alert('匯入失敗：' + error.message);
+                }
+            }
+
+            async confirmClearData() {
+                if (confirm('⚠️ 確定要清除所有資料嗎？此操作無法復原！')) {
+                    try {
+                        await this.storage.clearAllData();
+                        await this.loadCocktails();
+                        this.render();
+                        await this.updateStorageStats();
+                        alert('所有資料已清除');
+                    } catch (error) {
+                        console.error('清除資料失敗:', error);
+                        alert('清除失敗：' + error.message);
+                    }
+                }
+            }
+
+            showError(message) { alert(message); }
+        }
+
+        // 啟動應用程式
+        const app = new CocktailApp();
+        window.app = app;
+
+        // Service Worker 註冊
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js')
+                    .then(registration => { console.log('SW 註冊成功:', registration); })
+                    .catch(error => { console.log('SW 註冊失敗:', error); });
+            });
+        }
+    </script>
+</body>
+
+</html>
