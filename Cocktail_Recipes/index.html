@@ -921,211 +921,376 @@
             formatBytes(bytes, decimals = 2) { if (bytes === 0) return '0 Bytes'; const k = 1024, dm = decimals < 0 ? 0 : decimals, sizes = ['Bytes', 'KB', 'MB', 'GB']; const i = Math.floor(Math.log(bytes) / Math.log(k)); return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i]; }
         }
 
-        // ===== GAS 客戶端（改善錯誤處理和調試） =====
-        const gas = {
-            get url() { return localStorage.getItem('gasUrl') || ''; },
-            set url(v) { localStorage.setItem('gasUrl', v || ''); },
-            
-            logDebug(message, data = null) {
-                console.log(`[GAS] ${message}`, data || '');
-                const debugContent = document.getElementById('debugContent');
-                if (debugContent) {
-                    const timestamp = new Date().toLocaleTimeString();
-                    const logEntry = `[${timestamp}] ${message}${data ? ': ' + JSON.stringify(data).substring(0, 100) : ''}`;
-                    debugContent.innerHTML = logEntry + '<br>' + debugContent.innerHTML;
-                }
-            },
-            
-            showConnectionStatus(message, type = 'info') {
-                const status = document.getElementById('connectionStatus');
-                if (status) {
-                    status.textContent = message;
-                    status.className = `connection-status ${type}`;
-                    status.classList.remove('hidden');
-                    
-                    if (type !== 'error') {
-                        setTimeout(() => {
-                            if (status.classList.contains(type)) {
-                                status.classList.add('hidden');
-                            }
-                        }, 3000);
-                    }
-                }
-            },
+        // 將這段程式碼加入到現有前端的 <script> 區段，替換原有的 gas 物件
 
-            async test() {
-                if (!this.url) {
-                    const error = '尚未設定 GAS URL';
-                    this.logDebug('測試失敗', error);
-                    throw new Error(error);
-                }
-                
-                this.logDebug('開始測試連線', this.url);
-                this.showConnectionStatus('正在測試連線...', 'info');
-                
-                try {
-                    const r = await fetch(`${this.url}?action=test`, { 
-                        method: 'GET', 
-                        mode: 'cors',
-                        cache: 'no-cache'
-                    });
-                    
-                    this.logDebug('測試回應狀態', `${r.status} ${r.statusText}`);
-                    
-                    if (!r.ok) {
-                        throw new Error(`HTTP ${r.status}: ${r.statusText}`);
-                    }
-                    
-                    const responseText = await r.text();
-                    this.logDebug('測試回應內容', responseText);
-                    
-                    const j = JSON.parse(responseText);
-                    const success = j.ok === true;
-                    
-                    if (success) {
-                        this.showConnectionStatus('✅ 連線測試成功', 'success');
-                        this.logDebug('測試成功', j.message);
-                    } else {
-                        this.showConnectionStatus('❌ 測試失敗: ' + (j.error || '未知錯誤'), 'error');
-                        this.logDebug('測試失敗', j.error);
-                    }
-                    
-                    return success;
-                } catch (error) {
-                    this.logDebug('測試異常', error.message);
-                    this.showConnectionStatus('❌ 連線失敗: ' + error.message, 'error');
-                    throw error;
-                }
-            },
-            
-            async list() {
-                if (!this.url) {
-                    throw new Error('尚未設定 GAS URL');
-                }
-                
-                this.logDebug('開始請求列表');
-                this.showConnectionStatus('正在從雲端讀取資料...', 'info');
-                
-                try {
-                    const r = await fetch(`${this.url}?action=list`, { 
-                        method: 'GET', 
-                        mode: 'cors',
-                        cache: 'no-cache'
-                    });
-                    
-                    this.logDebug('列表回應狀態', `${r.status} ${r.statusText}`);
-                    
-                    if (!r.ok) {
-                        throw new Error(`HTTP ${r.status}: ${r.statusText}`);
-                    }
-                    
-                    const responseText = await r.text();
-                    this.logDebug('列表回應內容大小', `${responseText.length} 字元`);
-                    
-                    const j = JSON.parse(responseText);
-                    if (!j.ok) {
-                        throw new Error(j.error || 'list 失敗');
-                    }
-                    
-                    const count = j.data ? j.data.length : 0;
-                    this.showConnectionStatus(`✅ 已讀取 ${count} 筆資料`, 'success');
-                    this.logDebug('列表成功', `${count} 筆資料`);
-                    
-                    return j.data || [];
-                } catch (error) {
-                    this.logDebug('列表異常', error.message);
-                    this.showConnectionStatus('❌ 讀取失敗: ' + error.message, 'error');
-                    throw error;
-                }
-            },
-            
-            async upsert(data) {
-                if (!this.url) {
-                    throw new Error('尚未設定 GAS URL');
-                }
-                
-                this.logDebug('開始上傳資料', { title: data.title, id: data.id });
-                this.showConnectionStatus('正在儲存到雲端...', 'info');
-                
-                try {
-                    const payload = JSON.stringify({ action: 'upsert', data });
-                    this.logDebug('上傳 payload 大小', `${payload.length} 字元`);
-                    
-                    const r = await fetch(this.url, { 
-                        method: 'POST', 
-                        mode: 'cors', 
-                        headers: { 'Content-Type': 'text/plain' }, 
-                        body: payload 
-                    });
-                    
-                    this.logDebug('上傳回應狀態', `${r.status} ${r.statusText}`);
-                    
-                    if (!r.ok) {
-                        throw new Error(`HTTP ${r.status}: ${r.statusText}`);
-                    }
-                    
-                    const responseText = await r.text();
-                    this.logDebug('上傳回應內容', responseText);
-                    
-                    const j = JSON.parse(responseText);
-                    if (!j.ok) {
-                        throw new Error(j.error || 'upsert 失敗');
-                    }
-                    
-                    this.showConnectionStatus('✅ 儲存成功', 'success');
-                    this.logDebug('上傳成功', j.id);
-                    
-                    return j.id;
-                } catch (error) {
-                    this.logDebug('上傳異常', error.message);
-                    this.showConnectionStatus('❌ 儲存失敗: ' + error.message, 'error');
-                    throw error;
-                }
-            },
-            
-            async remove(id) {
-                if (!this.url) {
-                    throw new Error('尚未設定 GAS URL');
-                }
-                
-                this.logDebug('開始刪除資料', id);
-                this.showConnectionStatus('正在刪除...', 'info');
-                
-                try {
-                    const payload = JSON.stringify({ action: 'delete', id });
-                    const r = await fetch(this.url, { 
-                        method: 'POST', 
-                        mode: 'cors', 
-                        headers: { 'Content-Type': 'text/plain' }, 
-                        body: payload 
-                    });
-                    
-                    this.logDebug('刪除回應狀態', `${r.status} ${r.statusText}`);
-                    
-                    if (!r.ok) {
-                        throw new Error(`HTTP ${r.status}: ${r.statusText}`);
-                    }
-                    
-                    const responseText = await r.text();
-                    this.logDebug('刪除回應內容', responseText);
-                    
-                    const j = JSON.parse(responseText);
-                    if (!j.ok) {
-                        throw new Error(j.error || 'delete 失敗');
-                    }
-                    
-                    this.showConnectionStatus('✅ 刪除成功', 'success');
-                    this.logDebug('刪除成功', id);
-                    
-                    return true;
-                } catch (error) {
-                    this.logDebug('刪除異常', error.message);
-                    this.showConnectionStatus('❌ 刪除失敗: ' + error.message, 'error');
-                    throw error;
-                }
+const gas = {
+    get url() { return localStorage.getItem('gasUrl') || ''; },
+    set url(v) { localStorage.setItem('gasUrl', v || ''); },
+    
+    logDebug(message, data = null) {
+        const timestamp = new Date().toLocaleTimeString();
+        console.log(`[${timestamp}] [GAS] ${message}`, data || '');
+        
+        const debugContent = document.getElementById('debugContent');
+        if (debugContent) {
+            const logEntry = `[${timestamp}] ${message}${data ? ': ' + JSON.stringify(data, null, 2).substring(0, 200) : ''}`;
+            debugContent.innerHTML = logEntry + '<br>' + debugContent.innerHTML;
+            // 保持最新的 10 條日誌
+            const lines = debugContent.innerHTML.split('<br>');
+            if (lines.length > 10) {
+                debugContent.innerHTML = lines.slice(0, 10).join('<br>');
             }
-        };
+        }
+    },
+    
+    showConnectionStatus(message, type = 'info') {
+        const status = document.getElementById('connectionStatus');
+        if (status) {
+            status.textContent = message;
+            status.className = `connection-status ${type}`;
+            status.classList.remove('hidden');
+            
+            if (type !== 'error') {
+                setTimeout(() => {
+                    if (status.classList.contains(type)) {
+                        status.classList.add('hidden');
+                    }
+                }, 5000);
+            }
+        }
+        this.logDebug(`狀態更新 [${type}]`, message);
+    },
 
+    async validateUrl(url) {
+        if (!url) return { valid: false, error: '未設定 URL' };
+        
+        const urlPattern = /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/;
+        if (!urlPattern.test(url)) {
+            return { 
+                valid: false, 
+                error: 'URL 格式不正確，應該是: https://script.google.com/macros/s/XXX/exec' 
+            };
+        }
+        
+        return { valid: true };
+    },
+
+    async test() {
+        const urlCheck = await this.validateUrl(this.url);
+        if (!urlCheck.valid) {
+            this.logDebug('URL 驗證失敗', urlCheck.error);
+            this.showConnectionStatus('❌ ' + urlCheck.error, 'error');
+            throw new Error(urlCheck.error);
+        }
+        
+        this.logDebug('開始測試連線', { url: this.url });
+        this.showConnectionStatus('正在測試連線...', 'info');
+        
+        try {
+            // 先測試基本的 HTTP 連線
+            const testUrl = `${this.url}?action=test&_t=${Date.now()}`;
+            this.logDebug('發送測試請求', { testUrl });
+            
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 15000); // 15秒超時
+            
+            const response = await fetch(testUrl, {
+                method: 'GET',
+                mode: 'cors',
+                cache: 'no-cache',
+                signal: controller.signal,
+                headers: {
+                    'Accept': 'application/json',
+                }
+            });
+            
+            clearTimeout(timeoutId);
+            
+            this.logDebug('收到回應', { 
+                status: response.status, 
+                statusText: response.statusText,
+                headers: Object.fromEntries(response.headers.entries())
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            const responseText = await response.text();
+            this.logDebug('回應內容', responseText);
+            
+            let jsonData;
+            try {
+                jsonData = JSON.parse(responseText);
+            } catch (parseErr) {
+                this.logDebug('JSON 解析失敗', { responseText, error: parseErr.message });
+                throw new Error('伺服器回應不是有效的 JSON 格式');
+            }
+            
+            const success = jsonData.ok === true;
+            
+            if (success) {
+                this.showConnectionStatus('✅ 連線測試成功', 'success');
+                this.logDebug('測試成功', jsonData);
+            } else {
+                this.showConnectionStatus('❌ 測試失敗: ' + (jsonData.error || '未知錯誤'), 'error');
+                this.logDebug('測試失敗', jsonData);
+            }
+            
+            return success;
+            
+        } catch (error) {
+            this.logDebug('測試異常', { 
+                name: error.name, 
+                message: error.message,
+                stack: error.stack 
+            });
+            
+            let userMessage = '連線失敗';
+            
+            if (error.name === 'AbortError') {
+                userMessage = '請求超時 (15秒)，請檢查網路連線';
+            } else if (error.message.includes('CORS')) {
+                userMessage = 'CORS 政策錯誤，請確認 Web App 部署設定';
+            } else if (error.message.includes('Failed to fetch')) {
+                userMessage = '無法連線到 Google Apps Script，請檢查 URL 是否正確';
+            } else {
+                userMessage = error.message;
+            }
+            
+            this.showConnectionStatus('❌ ' + userMessage, 'error');
+            throw new Error(userMessage);
+        }
+    },
+    
+    async list() {
+        const urlCheck = await this.validateUrl(this.url);
+        if (!urlCheck.valid) {
+            throw new Error(urlCheck.error);
+        }
+        
+        this.logDebug('開始請求列表');
+        this.showConnectionStatus('正在從雲端讀取資料...', 'info');
+        
+        try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 20000); // 20秒超時
+            
+            const response = await fetch(`${this.url}?action=list&_t=${Date.now()}`, {
+                method: 'GET',
+                mode: 'cors',
+                cache: 'no-cache',
+                signal: controller.signal
+            });
+            
+            clearTimeout(timeoutId);
+            
+            this.logDebug('列表回應狀態', `${response.status} ${response.statusText}`);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            const responseText = await response.text();
+            this.logDebug('列表回應大小', `${responseText.length} 字元`);
+            
+            const jsonData = JSON.parse(responseText);
+            if (!jsonData.ok) {
+                throw new Error(jsonData.error || 'list 操作失敗');
+            }
+            
+            const count = jsonData.data ? jsonData.data.length : 0;
+            this.showConnectionStatus(`✅ 已讀取 ${count} 筆資料`, 'success');
+            this.logDebug('列表成功', `${count} 筆資料`);
+            
+            return jsonData.data || [];
+            
+        } catch (error) {
+            this.logDebug('列表異常', error);
+            
+            let userMessage = '讀取失敗';
+            if (error.name === 'AbortError') {
+                userMessage = '讀取超時，資料可能較大或網路較慢';
+            } else {
+                userMessage = error.message;
+            }
+            
+            this.showConnectionStatus('❌ ' + userMessage, 'error');
+            throw new Error(userMessage);
+        }
+    },
+    
+    async upsert(data) {
+        const urlCheck = await this.validateUrl(this.url);
+        if (!urlCheck.valid) {
+            throw new Error(urlCheck.error);
+        }
+        
+        this.logDebug('開始上傳資料', { title: data.title, id: data.id });
+        this.showConnectionStatus('正在儲存到雲端...', 'info');
+        
+        try {
+            const payload = JSON.stringify({ action: 'upsert', data });
+            this.logDebug('上傳資料大小', `${payload.length} 字元`);
+            
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 30000); // 30秒超時
+            
+            const response = await fetch(this.url, {
+                method: 'POST',
+                mode: 'cors',
+                headers: {
+                    'Content-Type': 'text/plain',
+                    'Accept': 'application/json'
+                },
+                body: payload,
+                signal: controller.signal
+            });
+            
+            clearTimeout(timeoutId);
+            
+            this.logDebug('上傳回應狀態', `${response.status} ${response.statusText}`);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            const responseText = await response.text();
+            this.logDebug('上傳回應內容', responseText);
+            
+            const jsonData = JSON.parse(responseText);
+            if (!jsonData.ok) {
+                throw new Error(jsonData.error || 'upsert 操作失敗');
+            }
+            
+            this.showConnectionStatus('✅ 儲存成功', 'success');
+            this.logDebug('上傳成功', jsonData.id);
+            
+            return jsonData.id;
+            
+        } catch (error) {
+            this.logDebug('上傳異常', error);
+            
+            let userMessage = '儲存失敗';
+            if (error.name === 'AbortError') {
+                userMessage = '上傳超時，資料可能較大或網路較慢';
+            } else {
+                userMessage = error.message;
+            }
+            
+            this.showConnectionStatus('❌ ' + userMessage, 'error');
+            throw new Error(userMessage);
+        }
+    },
+    
+    async remove(id) {
+        const urlCheck = await this.validateUrl(this.url);
+        if (!urlCheck.valid) {
+            throw new Error(urlCheck.error);
+        }
+        
+        this.logDebug('開始刪除資料', id);
+        this.showConnectionStatus('正在刪除...', 'info');
+        
+        try {
+            const payload = JSON.stringify({ action: 'delete', id });
+            const response = await fetch(this.url, {
+                method: 'POST',
+                mode: 'cors',
+                headers: {
+                    'Content-Type': 'text/plain',
+                    'Accept': 'application/json'
+                },
+                body: payload
+            });
+            
+            this.logDebug('刪除回應狀態', `${response.status} ${response.statusText}`);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            const responseText = await response.text();
+            this.logDebug('刪除回應內容', responseText);
+            
+            const jsonData = JSON.parse(responseText);
+            if (!jsonData.ok) {
+                throw new Error(jsonData.error || 'delete 操作失敗');
+            }
+            
+            this.showConnectionStatus('✅ 刪除成功', 'success');
+            this.logDebug('刪除成功', id);
+            
+            return true;
+            
+        } catch (error) {
+            this.logDebug('刪除異常', error);
+            this.showConnectionStatus('❌ 刪除失敗: ' + error.message, 'error');
+            throw new Error(error.message);
+        }
+    }
+};
+
+// 增強的調試工具
+window.gasDebug = {
+    // 基本測試
+    test: () => gas.test(),
+    list: () => gas.list(),
+    
+    // URL 驗證
+    checkUrl: async () => {
+        const url = gas.url;
+        console.log('當前 URL:', url);
+        const result = await gas.validateUrl(url);
+        console.log('驗證結果:', result);
+        return result;
+    },
+    
+    // 直接瀏覽器測試
+    openTestUrl: () => {
+        const url = gas.url + '?action=test';
+        console.log('在新視窗開啟:', url);
+        window.open(url, '_blank');
+    },
+    
+    // 網路診斷
+    networkTest: async () => {
+        console.log('開始網路診斷...');
+        
+        // 測試基本網路連線
+        try {
+            await fetch('https://www.google.com/', { method: 'HEAD', mode: 'no-cors' });
+            console.log('✅ 基本網路連線正常');
+        } catch (e) {
+            console.log('❌ 基本網路連線異常:', e);
+        }
+        
+        // 測試 Google 服務連線
+        try {
+            await fetch('https://script.google.com/', { method: 'HEAD', mode: 'no-cors' });
+            console.log('✅ Google Apps Script 服務可達');
+        } catch (e) {
+            console.log('❌ Google Apps Script 服務無法連線:', e);
+        }
+        
+        // 測試目標 URL
+        if (gas.url) {
+            try {
+                const response = await fetch(gas.url + '?action=test');
+                console.log('✅ 目標 URL 回應正常:', response.status);
+            } catch (e) {
+                console.log('❌ 目標 URL 無法連線:', e);
+            }
+        }
+    },
+    
+    // 清除日誌
+    clearLogs: () => {
+        const debugContent = document.getElementById('debugContent');
+        if (debugContent) debugContent.innerHTML = '日誌已清除';
+        console.clear();
+    }
+};
         class CocktailApp {
             constructor() {
                 this.storage = new MobileStorageManager();
@@ -1403,5 +1568,6 @@
         };
     </script>
 </body>
+
 
 </html>
