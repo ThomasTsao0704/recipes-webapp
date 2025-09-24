@@ -125,6 +125,165 @@
             color: #856404;
         }
 
+        /* 管理員認證 UI 樣式 */
+        .admin-controls {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 6px 12px;
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .admin-status-text {
+            font-size: 0.85rem;
+            color: #4a5568;
+            font-weight: 500;
+            min-width: 80px;
+        }
+
+        .admin-mode .admin-controls {
+            background: rgba(72, 187, 120, 0.15);
+            border-color: rgba(72, 187, 120, 0.3);
+        }
+
+        .admin-mode .admin-status-text {
+            color: #2f855a;
+        }
+
+        .guest-mode .admin-controls {
+            background: rgba(160, 174, 192, 0.15);
+            border-color: rgba(160, 174, 192, 0.3);
+        }
+
+        .admin-login-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 2000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .admin-login-modal.show {
+            display: flex;
+        }
+
+        .admin-login-form {
+            background: white;
+            padding: 32px;
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+            width: min(400px, 90vw);
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .admin-login-form h3 {
+            margin: 0 0 24px 0;
+            text-align: center;
+            color: #2d3748;
+        }
+
+        .admin-login-form .form-group {
+            margin-bottom: 20px;
+        }
+
+        .admin-login-form label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #4a5568;
+        }
+
+        .admin-login-form input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.2s;
+        }
+
+        .admin-login-form input:focus {
+            outline: none;
+            border-color: #4299e1;
+            box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.1);
+        }
+
+        .admin-login-actions {
+            display: flex;
+            gap: 12px;
+            margin-top: 24px;
+        }
+
+        .admin-login-actions button {
+            flex: 1;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-login {
+            background: #4299e1;
+            color: white;
+        }
+
+        .btn-login:hover {
+            background: #3182ce;
+        }
+
+        .btn-cancel {
+            background: #e2e8f0;
+            color: #4a5568;
+        }
+
+        .btn-cancel:hover {
+            background: #cbd5e0;
+        }
+
+        .admin-error {
+            background: #fed7d7;
+            color: #822727;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+            font-size: 0.9rem;
+        }
+
+        .admin-success {
+            background: #c6f6d5;
+            color: #2f855a;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+            font-size: 0.9rem;
+        }
+
+        /* 隱藏編輯功能的樣式 */
+        .guest-mode .edit-only {
+            display: none !important;
+        }
+
+        .guest-mode .cocktail-card .btn {
+            display: none !important;
+        }
+
+        .edit-disabled {
+            opacity: 0.5;
+            pointer-events: none;
+            user-select: none;
+        }
+
         .filters {
             background: rgba(255, 255, 255, .1);
             backdrop-filter: blur(10px);
@@ -495,6 +654,7 @@
         .topbar .actions {
             display: flex;
             gap: 8px;
+            align-items: center;
         }
 
         .drawer {
@@ -522,8 +682,8 @@
 
         .drawer-header {
             display: flex;
-            align-items: center;
             justify-content: space-between;
+            align-items: center;
             margin-bottom: 20px;
             padding-bottom: 16px;
             border-bottom: 1px solid #e2e8f0;
@@ -532,6 +692,32 @@
         .drawer-header h3 {
             margin: 0;
             color: #2d3748;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn-close {
+            background: #f56565;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 32px;
+            height: 32px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+
+        .btn-close:hover {
+            background: #e53e3e;
+            transform: scale(1.1);
         }
 
         .edit-form label {
@@ -564,6 +750,12 @@
             margin-top: 20px;
             padding-top: 16px;
             border-top: 1px solid #e2e8f0;
+            flex-wrap: wrap;
+        }
+
+        .drawer-actions .btn {
+            flex: 1;
+            min-width: 100px;
         }
 
         #imagePreview img,
@@ -619,6 +811,17 @@
             }
         }
 
+        /* 響應式設計 */
+        @media (max-width: 480px) {
+            .drawer-actions {
+                flex-direction: column;
+            }
+            
+            .drawer-actions .btn {
+                width: 100%;
+            }
+        }
+
         @media (max-width:768px) {
             #cocktailsContainer.cocktails-grid {
                 grid-template-columns: 1fr !important;
@@ -633,6 +836,17 @@
                 flex-direction: column;
                 gap: 12px;
                 padding: 16px;
+            }
+            
+            .topbar .actions {
+                margin-right: 0; /* 手機版移除右邊距 */
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+            
+            .admin-controls {
+                order: -1; /* 在手機版時顯示在最上方 */
+                margin-bottom: 8px;
             }
 
             .nav-tabs {
@@ -661,6 +875,36 @@
 </head>
 
 <body>
+    <!-- 管理員登入彈窗 -->
+    <div id="adminLoginModal" class="admin-login-modal">
+        <div class="admin-login-form">
+            <h3>🔐 管理員登入</h3>
+            <div id="adminLoginError" class="admin-error" style="display: none;"></div>
+            <div id="adminLoginSuccess" class="admin-success" style="display: none;"></div>
+            
+            <form id="adminLoginForm">
+                <div class="form-group">
+                    <label for="adminUsername">用戶名</label>
+                    <input type="text" id="adminUsername" required autocomplete="username">
+                </div>
+                <div class="form-group">
+                    <label for="adminPassword">密碼</label>
+                    <input type="password" id="adminPassword" required autocomplete="current-password">
+                </div>
+                <div class="admin-login-actions">
+                    <button type="submit" class="btn-login">登入</button>
+                    <button type="button" class="btn-cancel" onclick="adminAuth.hideLoginModal()">取消</button>
+                </div>
+            </form>
+            
+            <div style="margin-top: 20px; padding-top: 16px; border-top: 1px solid #e2e8f0; font-size: 0.85rem; color: #718096; text-align: center;">
+                <p>⚠️ 管理員模式才能編輯和刪除酒譜</p>
+                <p>預設帳號：admin / cocktail2024</p>
+                <p>（首次使用請務必修改密碼）</p>
+            </div>
+        </div>
+    </div>
+
     <!-- PWA 安裝提示 -->
     <div id="installPrompt" class="install-prompt">
         <span>🍸 將雞尾酒譜安裝到您的手機，隨時離線使用！</span>
@@ -680,6 +924,13 @@
         <div class="actions">
             <button id="btnSync" class="btn btn-primary" type="button">🔄 同步（從雲端讀取）</button>
             <button id="btnClearData" class="btn btn-danger" type="button">🗑️ 清除本機快取</button>
+            
+            <!-- 管理員控制整合 -->
+            <div id="adminControls" class="admin-controls guest-mode">
+                <span id="adminStatusText" class="admin-status-text">訪客模式</span>
+                <button id="adminLoginBtn" class="btn btn-primary" style="padding: 6px 12px; font-size: 0.85rem;">管理員登入</button>
+                <button id="adminLogoutBtn" class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.85rem; display: none;">登出</button>
+            </div>
         </div>
     </header>
 
@@ -836,7 +1087,7 @@
             <div class="form-section">
                 <h3>🌐 GAS 連線</h3>
                 <div class="form-group">
-                    <label for="gasUrl">Web App URL（例： https://script.google.com/macros/s/XXX/exec ）</label>
+                    <label for="gasUrl">Web App URL（例：https://script.google.com/macros/s/XXX/exec）</label>
                     <input type="url" id="gasUrl" placeholder="貼上你的 GAS Web App URL">
                 </div>
                 <div class="form-actions">
@@ -859,19 +1110,21 @@
             <div class="form-section">
                 <h3>ℹ️ 應用程式資訊</h3>
                 <div style="color: rgba(255,255,255,0.8); line-height: 1.6;">
-                    <p><strong>版本：</strong> 2.1（改用 Google Sheet + GAS + 修復 CORS）</p>
+                    <p><strong>版本：</strong> 2.2（整合管理員認證系統）</p>
                     <p><strong>儲存方式：</strong> 雲端（GAS）＋ 本機 IndexedDB 圖片快取</p>
-                    <p><strong>支援功能：</strong> 離線瀏覽、雲端同步、圖片快取</p>
+                    <p><strong>支援功能：</strong> 離線瀏覽、雲端同步、圖片快取、管理員認證</p>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- 編輯抽屜 -->
+    <!-- 編輯抽屜 - 增強版 -->
     <aside id="editDrawer" class="drawer hidden" aria-hidden="true">
         <div class="drawer-header">
             <h3>編輯酒譜</h3>
-            <button id="closeDrawer" class="btn btn-secondary" type="button">關閉</button>
+            <div class="header-actions">
+                <button id="closeDrawerX" class="btn-close" type="button" title="關閉">✕</button>
+            </div>
         </div>
         <form id="editForm" class="edit-form">
             <label>標題</label><input name="title" type="text" required>
@@ -894,9 +1147,11 @@
             <label>更換圖片（選填）</label>
             <input id="imageFile" name="image_file" type="file" accept="image/*">
             <div id="imagePreview" style="margin:8px 0;"></div>
+            
             <div class="drawer-actions">
-                <button id="saveCocktail" class="btn btn-primary" type="button">儲存</button>
-                <button id="deleteCocktail" class="btn btn-danger" type="button">刪除</button>
+                <button id="saveCocktail" class="btn btn-primary" type="button">💾 儲存</button>
+                <button id="cancelEdit" class="btn btn-secondary" type="button">🚫 取消</button>
+                <button id="deleteCocktail" class="btn btn-danger" type="button">🗑️ 刪除</button>
             </div>
         </form>
     </aside>
@@ -921,376 +1176,580 @@
             formatBytes(bytes, decimals = 2) { if (bytes === 0) return '0 Bytes'; const k = 1024, dm = decimals < 0 ? 0 : decimals, sizes = ['Bytes', 'KB', 'MB', 'GB']; const i = Math.floor(Math.log(bytes) / Math.log(k)); return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i]; }
         }
 
-        // 將這段程式碼加入到現有前端的 <script> 區段，替換原有的 gas 物件
-
-const gas = {
-    get url() { return localStorage.getItem('gasUrl') || ''; },
-    set url(v) { localStorage.setItem('gasUrl', v || ''); },
-    
-    logDebug(message, data = null) {
-        const timestamp = new Date().toLocaleTimeString();
-        console.log(`[${timestamp}] [GAS] ${message}`, data || '');
-        
-        const debugContent = document.getElementById('debugContent');
-        if (debugContent) {
-            const logEntry = `[${timestamp}] ${message}${data ? ': ' + JSON.stringify(data, null, 2).substring(0, 200) : ''}`;
-            debugContent.innerHTML = logEntry + '<br>' + debugContent.innerHTML;
-            // 保持最新的 10 條日誌
-            const lines = debugContent.innerHTML.split('<br>');
-            if (lines.length > 10) {
-                debugContent.innerHTML = lines.slice(0, 10).join('<br>');
-            }
-        }
-    },
-    
-    showConnectionStatus(message, type = 'info') {
-        const status = document.getElementById('connectionStatus');
-        if (status) {
-            status.textContent = message;
-            status.className = `connection-status ${type}`;
-            status.classList.remove('hidden');
+        // ===== GAS 客戶端（增強版，支援管理員認證） =====
+        const gas = {
+            get url() { return localStorage.getItem('gasUrl') || ''; },
+            set url(v) { localStorage.setItem('gasUrl', v || ''); },
             
-            if (type !== 'error') {
-                setTimeout(() => {
-                    if (status.classList.contains(type)) {
-                        status.classList.add('hidden');
+            logDebug(message, data = null) {
+                const timestamp = new Date().toLocaleTimeString();
+                console.log(`[${timestamp}] [GAS] ${message}`, data || '');
+                
+                const debugContent = document.getElementById('debugContent');
+                if (debugContent) {
+                    const logEntry = `[${timestamp}] ${message}${data ? ': ' + JSON.stringify(data, null, 2).substring(0, 200) : ''}`;
+                    debugContent.innerHTML = logEntry + '<br>' + debugContent.innerHTML;
+                    const lines = debugContent.innerHTML.split('<br>');
+                    if (lines.length > 10) {
+                        debugContent.innerHTML = lines.slice(0, 10).join('<br>');
                     }
-                }, 5000);
-            }
-        }
-        this.logDebug(`狀態更新 [${type}]`, message);
-    },
-
-    async validateUrl(url) {
-        if (!url) return { valid: false, error: '未設定 URL' };
-        
-        const urlPattern = /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/;
-        if (!urlPattern.test(url)) {
-            return { 
-                valid: false, 
-                error: 'URL 格式不正確，應該是: https://script.google.com/macros/s/XXX/exec' 
-            };
-        }
-        
-        return { valid: true };
-    },
-
-    async test() {
-        const urlCheck = await this.validateUrl(this.url);
-        if (!urlCheck.valid) {
-            this.logDebug('URL 驗證失敗', urlCheck.error);
-            this.showConnectionStatus('❌ ' + urlCheck.error, 'error');
-            throw new Error(urlCheck.error);
-        }
-        
-        this.logDebug('開始測試連線', { url: this.url });
-        this.showConnectionStatus('正在測試連線...', 'info');
-        
-        try {
-            // 先測試基本的 HTTP 連線
-            const testUrl = `${this.url}?action=test&_t=${Date.now()}`;
-            this.logDebug('發送測試請求', { testUrl });
-            
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 15000); // 15秒超時
-            
-            const response = await fetch(testUrl, {
-                method: 'GET',
-                mode: 'cors',
-                cache: 'no-cache',
-                signal: controller.signal,
-                headers: {
-                    'Accept': 'application/json',
                 }
-            });
+            },
             
-            clearTimeout(timeoutId);
-            
-            this.logDebug('收到回應', { 
-                status: response.status, 
-                statusText: response.statusText,
-                headers: Object.fromEntries(response.headers.entries())
-            });
-            
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
-            
-            const responseText = await response.text();
-            this.logDebug('回應內容', responseText);
-            
-            let jsonData;
-            try {
-                jsonData = JSON.parse(responseText);
-            } catch (parseErr) {
-                this.logDebug('JSON 解析失敗', { responseText, error: parseErr.message });
-                throw new Error('伺服器回應不是有效的 JSON 格式');
-            }
-            
-            const success = jsonData.ok === true;
-            
-            if (success) {
-                this.showConnectionStatus('✅ 連線測試成功', 'success');
-                this.logDebug('測試成功', jsonData);
-            } else {
-                this.showConnectionStatus('❌ 測試失敗: ' + (jsonData.error || '未知錯誤'), 'error');
-                this.logDebug('測試失敗', jsonData);
-            }
-            
-            return success;
-            
-        } catch (error) {
-            this.logDebug('測試異常', { 
-                name: error.name, 
-                message: error.message,
-                stack: error.stack 
-            });
-            
-            let userMessage = '連線失敗';
-            
-            if (error.name === 'AbortError') {
-                userMessage = '請求超時 (15秒)，請檢查網路連線';
-            } else if (error.message.includes('CORS')) {
-                userMessage = 'CORS 政策錯誤，請確認 Web App 部署設定';
-            } else if (error.message.includes('Failed to fetch')) {
-                userMessage = '無法連線到 Google Apps Script，請檢查 URL 是否正確';
-            } else {
-                userMessage = error.message;
-            }
-            
-            this.showConnectionStatus('❌ ' + userMessage, 'error');
-            throw new Error(userMessage);
-        }
-    },
-    
-    async list() {
-        const urlCheck = await this.validateUrl(this.url);
-        if (!urlCheck.valid) {
-            throw new Error(urlCheck.error);
-        }
-        
-        this.logDebug('開始請求列表');
-        this.showConnectionStatus('正在從雲端讀取資料...', 'info');
-        
-        try {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 20000); // 20秒超時
-            
-            const response = await fetch(`${this.url}?action=list&_t=${Date.now()}`, {
-                method: 'GET',
-                mode: 'cors',
-                cache: 'no-cache',
-                signal: controller.signal
-            });
-            
-            clearTimeout(timeoutId);
-            
-            this.logDebug('列表回應狀態', `${response.status} ${response.statusText}`);
-            
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
-            
-            const responseText = await response.text();
-            this.logDebug('列表回應大小', `${responseText.length} 字元`);
-            
-            const jsonData = JSON.parse(responseText);
-            if (!jsonData.ok) {
-                throw new Error(jsonData.error || 'list 操作失敗');
-            }
-            
-            const count = jsonData.data ? jsonData.data.length : 0;
-            this.showConnectionStatus(`✅ 已讀取 ${count} 筆資料`, 'success');
-            this.logDebug('列表成功', `${count} 筆資料`);
-            
-            return jsonData.data || [];
-            
-        } catch (error) {
-            this.logDebug('列表異常', error);
-            
-            let userMessage = '讀取失敗';
-            if (error.name === 'AbortError') {
-                userMessage = '讀取超時，資料可能較大或網路較慢';
-            } else {
-                userMessage = error.message;
-            }
-            
-            this.showConnectionStatus('❌ ' + userMessage, 'error');
-            throw new Error(userMessage);
-        }
-    },
-    
-    async upsert(data) {
-        const urlCheck = await this.validateUrl(this.url);
-        if (!urlCheck.valid) {
-            throw new Error(urlCheck.error);
-        }
-        
-        this.logDebug('開始上傳資料', { title: data.title, id: data.id });
-        this.showConnectionStatus('正在儲存到雲端...', 'info');
-        
-        try {
-            const payload = JSON.stringify({ action: 'upsert', data });
-            this.logDebug('上傳資料大小', `${payload.length} 字元`);
-            
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 30000); // 30秒超時
-            
-            const response = await fetch(this.url, {
-                method: 'POST',
-                mode: 'cors',
-                headers: {
-                    'Content-Type': 'text/plain',
-                    'Accept': 'application/json'
-                },
-                body: payload,
-                signal: controller.signal
-            });
-            
-            clearTimeout(timeoutId);
-            
-            this.logDebug('上傳回應狀態', `${response.status} ${response.statusText}`);
-            
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
-            
-            const responseText = await response.text();
-            this.logDebug('上傳回應內容', responseText);
-            
-            const jsonData = JSON.parse(responseText);
-            if (!jsonData.ok) {
-                throw new Error(jsonData.error || 'upsert 操作失敗');
-            }
-            
-            this.showConnectionStatus('✅ 儲存成功', 'success');
-            this.logDebug('上傳成功', jsonData.id);
-            
-            return jsonData.id;
-            
-        } catch (error) {
-            this.logDebug('上傳異常', error);
-            
-            let userMessage = '儲存失敗';
-            if (error.name === 'AbortError') {
-                userMessage = '上傳超時，資料可能較大或網路較慢';
-            } else {
-                userMessage = error.message;
-            }
-            
-            this.showConnectionStatus('❌ ' + userMessage, 'error');
-            throw new Error(userMessage);
-        }
-    },
-    
-    async remove(id) {
-        const urlCheck = await this.validateUrl(this.url);
-        if (!urlCheck.valid) {
-            throw new Error(urlCheck.error);
-        }
-        
-        this.logDebug('開始刪除資料', id);
-        this.showConnectionStatus('正在刪除...', 'info');
-        
-        try {
-            const payload = JSON.stringify({ action: 'delete', id });
-            const response = await fetch(this.url, {
-                method: 'POST',
-                mode: 'cors',
-                headers: {
-                    'Content-Type': 'text/plain',
-                    'Accept': 'application/json'
-                },
-                body: payload
-            });
-            
-            this.logDebug('刪除回應狀態', `${response.status} ${response.statusText}`);
-            
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
-            
-            const responseText = await response.text();
-            this.logDebug('刪除回應內容', responseText);
-            
-            const jsonData = JSON.parse(responseText);
-            if (!jsonData.ok) {
-                throw new Error(jsonData.error || 'delete 操作失敗');
-            }
-            
-            this.showConnectionStatus('✅ 刪除成功', 'success');
-            this.logDebug('刪除成功', id);
-            
-            return true;
-            
-        } catch (error) {
-            this.logDebug('刪除異常', error);
-            this.showConnectionStatus('❌ 刪除失敗: ' + error.message, 'error');
-            throw new Error(error.message);
-        }
-    }
-};
+            showConnectionStatus(message, type = 'info') {
+                const status = document.getElementById('connectionStatus');
+                if (status) {
+                    status.textContent = message;
+                    status.className = `connection-status ${type}`;
+                    status.classList.remove('hidden');
+                    
+                    if (type !== 'error') {
+                        setTimeout(() => {
+                            if (status.classList.contains(type)) {
+                                status.classList.add('hidden');
+                            }
+                        }, 5000);
+                    }
+                }
+                this.logDebug(`狀態更新 [${type}]`, message);
+            },
 
-// 增強的調試工具
-window.gasDebug = {
-    // 基本測試
-    test: () => gas.test(),
-    list: () => gas.list(),
-    
-    // URL 驗證
-    checkUrl: async () => {
-        const url = gas.url;
-        console.log('當前 URL:', url);
-        const result = await gas.validateUrl(url);
-        console.log('驗證結果:', result);
-        return result;
-    },
-    
-    // 直接瀏覽器測試
-    openTestUrl: () => {
-        const url = gas.url + '?action=test';
-        console.log('在新視窗開啟:', url);
-        window.open(url, '_blank');
-    },
-    
-    // 網路診斷
-    networkTest: async () => {
-        console.log('開始網路診斷...');
-        
-        // 測試基本網路連線
-        try {
-            await fetch('https://www.google.com/', { method: 'HEAD', mode: 'no-cors' });
-            console.log('✅ 基本網路連線正常');
-        } catch (e) {
-            console.log('❌ 基本網路連線異常:', e);
-        }
-        
-        // 測試 Google 服務連線
-        try {
-            await fetch('https://script.google.com/', { method: 'HEAD', mode: 'no-cors' });
-            console.log('✅ Google Apps Script 服務可達');
-        } catch (e) {
-            console.log('❌ Google Apps Script 服務無法連線:', e);
-        }
-        
-        // 測試目標 URL
-        if (gas.url) {
-            try {
-                const response = await fetch(gas.url + '?action=test');
-                console.log('✅ 目標 URL 回應正常:', response.status);
-            } catch (e) {
-                console.log('❌ 目標 URL 無法連線:', e);
+            async validateUrl(url) {
+                if (!url) return { valid: false, error: '未設定 URL' };
+                
+                const urlPattern = /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/;
+                if (!urlPattern.test(url)) {
+                    return { 
+                        valid: false, 
+                        error: 'URL 格式不正確，應該是: https://script.google.com/macros/s/XXX/exec' 
+                    };
+                }
+                
+                return { valid: true };
+            },
+
+            async test() {
+                const urlCheck = await this.validateUrl(this.url);
+                if (!urlCheck.valid) {
+                    this.logDebug('URL 驗證失敗', urlCheck.error);
+                    this.showConnectionStatus('⌫ ' + urlCheck.error, 'error');
+                    throw new Error(urlCheck.error);
+                }
+                
+                this.logDebug('開始測試連線', { url: this.url });
+                this.showConnectionStatus('正在測試連線...', 'info');
+                
+                try {
+                    const testUrl = `${this.url}?action=test&_t=${Date.now()}`;
+                    this.logDebug('發送測試請求', { testUrl });
+                    
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 15000);
+                    
+                    const response = await fetch(testUrl, {
+                        method: 'GET',
+                        mode: 'cors',
+                        cache: 'no-cache',
+                        signal: controller.signal,
+                        headers: {
+                            'Accept': 'application/json',
+                        }
+                    });
+                    
+                    clearTimeout(timeoutId);
+                    
+                    this.logDebug('收到回應', { 
+                        status: response.status, 
+                        statusText: response.statusText,
+                        headers: Object.fromEntries(response.headers.entries())
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    
+                    const responseText = await response.text();
+                    this.logDebug('回應內容', responseText);
+                    
+                    let jsonData;
+                    try {
+                        jsonData = JSON.parse(responseText);
+                    } catch (parseErr) {
+                        this.logDebug('JSON 解析失敗', { responseText, error: parseErr.message });
+                        throw new Error('伺服器回應不是有效的 JSON 格式');
+                    }
+                    
+                    const success = jsonData.ok === true;
+                    
+                    if (success) {
+                        this.showConnectionStatus('✅ 連線測試成功', 'success');
+                        this.logDebug('測試成功', jsonData);
+                    } else {
+                        this.showConnectionStatus('⌫ 測試失敗: ' + (jsonData.error || '未知錯誤'), 'error');
+                        this.logDebug('測試失敗', jsonData);
+                    }
+                    
+                    return success;
+                    
+                } catch (error) {
+                    this.logDebug('測試異常', { 
+                        name: error.name, 
+                        message: error.message,
+                        stack: error.stack 
+                    });
+                    
+                    let userMessage = '連線失敗';
+                    
+                    if (error.name === 'AbortError') {
+                        userMessage = '請求超時 (15秒)，請檢查網路連線';
+                    } else if (error.message.includes('CORS')) {
+                        userMessage = 'CORS 政策錯誤，請確認 Web App 部署設定';
+                    } else if (error.message.includes('Failed to fetch')) {
+                        userMessage = '無法連線到 Google Apps Script，請檢查 URL 是否正確';
+                    } else {
+                        userMessage = error.message;
+                    }
+                    
+                    this.showConnectionStatus('⌫ ' + userMessage, 'error');
+                    throw new Error(userMessage);
+                }
+            },
+            
+            async list() {
+                const urlCheck = await this.validateUrl(this.url);
+                if (!urlCheck.valid) {
+                    throw new Error(urlCheck.error);
+                }
+                
+                this.logDebug('開始請求列表');
+                this.showConnectionStatus('正在從雲端讀取資料...', 'info');
+                
+                try {
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 20000);
+                    
+                    const response = await fetch(`${this.url}?action=list&_t=${Date.now()}`, {
+                        method: 'GET',
+                        mode: 'cors',
+                        cache: 'no-cache',
+                        signal: controller.signal
+                    });
+                    
+                    clearTimeout(timeoutId);
+                    
+                    this.logDebug('列表回應狀態', `${response.status} ${response.statusText}`);
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    
+                    const responseText = await response.text();
+                    this.logDebug('列表回應大小', `${responseText.length} 字元`);
+                    
+                    const jsonData = JSON.parse(responseText);
+                    if (!jsonData.ok) {
+                        throw new Error(jsonData.error || 'list 操作失敗');
+                    }
+                    
+                    const count = jsonData.data ? jsonData.data.length : 0;
+                    this.showConnectionStatus(`✅ 已讀取 ${count} 筆資料`, 'success');
+                    this.logDebug('列表成功', `${count} 筆資料`);
+                    
+                    return jsonData.data || [];
+                    
+                } catch (error) {
+                    this.logDebug('列表異常', error);
+                    
+                    let userMessage = '讀取失敗';
+                    if (error.name === 'AbortError') {
+                        userMessage = '讀取超時，資料可能較大或網路較慢';
+                    } else {
+                        userMessage = error.message;
+                    }
+                    
+                    this.showConnectionStatus('⌫ ' + userMessage, 'error');
+                    throw new Error(userMessage);
+                }
+            },
+            
+            async upsert(data) {
+                const urlCheck = await this.validateUrl(this.url);
+                if (!urlCheck.valid) {
+                    throw new Error(urlCheck.error);
+                }
+                
+                this.logDebug('開始上傳資料', { title: data.title, id: data.id });
+                this.showConnectionStatus('正在儲存到雲端...', 'info');
+                
+                try {
+                    const payload = JSON.stringify({ action: 'upsert', data });
+                    this.logDebug('上傳資料大小', `${payload.length} 字元`);
+                    
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 30000);
+                    
+                    const response = await fetch(this.url, {
+                        method: 'POST',
+                        mode: 'cors',
+                        headers: {
+                            'Content-Type': 'text/plain',
+                            'Accept': 'application/json'
+                        },
+                        body: payload,
+                        signal: controller.signal
+                    });
+                    
+                    clearTimeout(timeoutId);
+                    
+                    this.logDebug('上傳回應狀態', `${response.status} ${response.statusText}`);
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    
+                    const responseText = await response.text();
+                    this.logDebug('上傳回應內容', responseText);
+                    
+                    const jsonData = JSON.parse(responseText);
+                    if (!jsonData.ok) {
+                        throw new Error(jsonData.error || 'upsert 操作失敗');
+                    }
+                    
+                    this.showConnectionStatus('✅ 儲存成功', 'success');
+                    this.logDebug('上傳成功', jsonData.id);
+                    
+                    return jsonData.id;
+                    
+                } catch (error) {
+                    this.logDebug('上傳異常', error);
+                    
+                    let userMessage = '儲存失敗';
+                    if (error.name === 'AbortError') {
+                        userMessage = '上傳超時，資料可能較大或網路較慢';
+                    } else {
+                        userMessage = error.message;
+                    }
+                    
+                    this.showConnectionStatus('⌫ ' + userMessage, 'error');
+                    throw new Error(userMessage);
+                }
+            },
+            
+            async remove(id) {
+                const urlCheck = await this.validateUrl(this.url);
+                if (!urlCheck.valid) {
+                    throw new Error(urlCheck.error);
+                }
+                
+                this.logDebug('開始刪除資料', id);
+                this.showConnectionStatus('正在刪除...', 'info');
+                
+                try {
+                    const payload = JSON.stringify({ action: 'delete', id });
+                    const response = await fetch(this.url, {
+                        method: 'POST',
+                        mode: 'cors',
+                        headers: {
+                            'Content-Type': 'text/plain',
+                            'Accept': 'application/json'
+                        },
+                        body: payload
+                    });
+                    
+                    this.logDebug('刪除回應狀態', `${response.status} ${response.statusText}`);
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    
+                    const responseText = await response.text();
+                    this.logDebug('刪除回應內容', responseText);
+                    
+                    const jsonData = JSON.parse(responseText);
+                    if (!jsonData.ok) {
+                        throw new Error(jsonData.error || 'delete 操作失敗');
+                    }
+                    
+                    this.showConnectionStatus('✅ 刪除成功', 'success');
+                    this.logDebug('刪除成功', id);
+                    
+                    return true;
+                    
+                } catch (error) {
+                    this.logDebug('刪除異常', error);
+                    this.showConnectionStatus('⌫ 刪除失敗: ' + error.message, 'error');
+                    throw new Error(error.message);
+                }
+            },
+
+            // 管理員登入功能
+            async adminLogin(username, password) {
+                const urlCheck = await this.validateUrl(this.url);
+                if (!urlCheck.valid) {
+                    throw new Error(urlCheck.error);
+                }
+                
+                this.logDebug('開始管理員登入', { username });
+                
+                try {
+                    const payload = JSON.stringify({
+                        action: 'admin_login',
+                        username: username,
+                        password: password
+                    });
+                    
+                    const response = await fetch(this.url, {
+                        method: 'POST',
+                        mode: 'cors',
+                        headers: {
+                            'Content-Type': 'text/plain',
+                            'Accept': 'application/json'
+                        },
+                        body: payload
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    
+                    const responseText = await response.text();
+                    const jsonData = JSON.parse(responseText);
+                    
+                    if (!jsonData.ok) {
+                        throw new Error(jsonData.error || '登入請求失敗');
+                    }
+                    
+                    return jsonData.data;
+                    
+                } catch (error) {
+                    this.logDebug('管理員登入異常', error);
+                    throw new Error(error.message);
+                }
             }
-        }
-    },
-    
-    // 清除日誌
-    clearLogs: () => {
-        const debugContent = document.getElementById('debugContent');
-        if (debugContent) debugContent.innerHTML = '日誌已清除';
-        console.clear();
-    }
-};
+        };
+
+        // ===== 管理員認證系統 =====
+        const adminAuth = {
+            isAdmin: false,
+            adminUser: null,
+            adminToken: null,
+            
+            init() {
+                this.loadAdminStatus();
+                this.bindEvents();
+                this.updateUI();
+            },
+            
+            bindEvents() {
+                document.getElementById('adminLoginBtn').addEventListener('click', () => this.showLoginModal());
+                document.getElementById('adminLogoutBtn').addEventListener('click', () => this.logout());
+                document.getElementById('adminLoginForm').addEventListener('submit', (e) => this.handleLogin(e));
+                
+                // ESC 鍵關閉彈窗
+                document.addEventListener('keydown', (e) => {
+                    if (e.key === 'Escape' && document.getElementById('adminLoginModal').classList.contains('show')) {
+                        this.hideLoginModal();
+                    }
+                });
+                
+                // 點擊外部關閉彈窗
+                document.getElementById('adminLoginModal').addEventListener('click', (e) => {
+                    if (e.target === e.currentTarget) {
+                        this.hideLoginModal();
+                    }
+                });
+            },
+            
+            loadAdminStatus() {
+                try {
+                    const savedAuth = localStorage.getItem('adminAuth');
+                    if (savedAuth) {
+                        const authData = JSON.parse(savedAuth);
+                        if (this.isTokenValid(authData.token, authData.timestamp)) {
+                            this.isAdmin = true;
+                            this.adminUser = authData.user;
+                            this.adminToken = authData.token;
+                        } else {
+                            localStorage.removeItem('adminAuth');
+                        }
+                    }
+                } catch (e) {
+                    console.warn('載入管理員狀態失敗:', e);
+                    localStorage.removeItem('adminAuth');
+                }
+            },
+            
+            saveAdminStatus() {
+                if (this.isAdmin && this.adminUser && this.adminToken) {
+                    const authData = {
+                        user: this.adminUser,
+                        token: this.adminToken,
+                        timestamp: Date.now()
+                    };
+                    localStorage.setItem('adminAuth', JSON.stringify(authData));
+                } else {
+                    localStorage.removeItem('adminAuth');
+                }
+            },
+            
+            isTokenValid(token, timestamp) {
+                if (!token || !timestamp) return false;
+                const now = Date.now();
+                return (now - timestamp) < (24 * 60 * 60 * 1000);
+            },
+            
+            showLoginModal() {
+                document.getElementById('adminLoginModal').classList.add('show');
+                document.getElementById('adminUsername').focus();
+                this.clearMessages();
+            },
+            
+            hideLoginModal() {
+                document.getElementById('adminLoginModal').classList.remove('show');
+                document.getElementById('adminLoginForm').reset();
+                this.clearMessages();
+            },
+            
+            async handleLogin(e) {
+                e.preventDefault();
+                
+                const username = document.getElementById('adminUsername').value.trim();
+                const password = document.getElementById('adminPassword').value;
+                
+                if (!username || !password) {
+                    this.showError('請輸入用戶名和密碼');
+                    return;
+                }
+                
+                try {
+                    this.showMessage('正在驗證...', 'info');
+                    
+                    const response = await gas.adminLogin(username, password);
+                    
+                    if (response.success && response.admin) {
+                        this.isAdmin = true;
+                        this.adminUser = response.user;
+                        this.adminToken = response.token;
+                        
+                        this.saveAdminStatus();
+                        this.updateUI();
+                        
+                        this.showSuccess('登入成功！管理員模式已啟用');
+                        
+                        setTimeout(() => {
+                            this.hideLoginModal();
+                        }, 1500);
+                        
+                    } else {
+                        this.showError(response.error || '登入失敗');
+                    }
+                    
+                } catch (error) {
+                    console.error('管理員登入錯誤:', error);
+                    this.showError('登入失敗: ' + error.message);
+                }
+            },
+            
+            logout() {
+                if (confirm('確定要登出管理員模式嗎？')) {
+                    this.isAdmin = false;
+                    this.adminUser = null;
+                    this.adminToken = null;
+                    
+                    localStorage.removeItem('adminAuth');
+                    this.updateUI();
+                    
+                    gas.showConnectionStatus('✅ 已登出管理員模式', 'success');
+                }
+            },
+            
+            updateUI() {
+                const statusEl = document.getElementById('adminControls');
+                const statusTextEl = document.getElementById('adminStatusText');
+                const loginBtn = document.getElementById('adminLoginBtn');
+                const logoutBtn = document.getElementById('adminLogoutBtn');
+                
+                if (this.isAdmin) {
+                    statusEl.className = 'admin-controls admin-mode';
+                    statusTextEl.textContent = `管理員: ${this.adminUser?.username || 'Admin'}`;
+                    loginBtn.style.display = 'none';
+                    logoutBtn.style.display = 'block';
+                    document.body.classList.add('admin-mode');
+                    document.body.classList.remove('guest-mode');
+                } else {
+                    statusEl.className = 'admin-controls guest-mode';
+                    statusTextEl.textContent = '訪客模式';
+                    loginBtn.style.display = 'block';
+                    logoutBtn.style.display = 'none';
+                    document.body.classList.add('guest-mode');
+                    document.body.classList.remove('admin-mode');
+                }
+                
+                this.updateEditButtons();
+            },
+            
+            updateEditButtons() {
+                const editButtons = document.querySelectorAll('[onclick*="editCocktail"]');
+                const addButton = document.querySelector('[data-page="add"]');
+                const deleteButtons = document.querySelectorAll('#deleteCocktail');
+                
+                const elements = [...editButtons, addButton, ...deleteButtons].filter(Boolean);
+                
+                elements.forEach(button => {
+                    if (this.isAdmin) {
+                        button.classList.remove('edit-disabled');
+                        button.removeAttribute('disabled');
+                        button.title = '';
+                    } else {
+                        button.classList.add('edit-disabled');
+                        button.setAttribute('disabled', 'disabled');
+                        button.title = '需要管理員權限';
+                    }
+                });
+            },
+            
+            checkPermission(operation = '編輯') {
+                if (!this.isAdmin) {
+                    alert(`⚠️ ${operation}功能需要管理員權限\n\n請先登入管理員帳號`);
+                    this.showLoginModal();
+                    return false;
+                }
+                return true;
+            },
+            
+            showError(message) {
+                this.showMessage(message, 'error');
+            },
+            
+            showSuccess(message) {
+                this.showMessage(message, 'success');
+            },
+            
+            showMessage(message, type) {
+                this.clearMessages();
+                
+                const errorEl = document.getElementById('adminLoginError');
+                const successEl = document.getElementById('adminLoginSuccess');
+                
+                if (type === 'error') {
+                    errorEl.textContent = message;
+                    errorEl.style.display = 'block';
+                } else if (type === 'success') {
+                    successEl.textContent = message;
+                    successEl.style.display = 'block';
+                } else {
+                    successEl.textContent = message;
+                    successEl.style.display = 'block';
+                }
+            },
+            
+            clearMessages() {
+                document.getElementById('adminLoginError').style.display = 'none';
+                document.getElementById('adminLoginSuccess').style.display = 'none';
+            }
+        };
+
+        // ===== 主應用程式 =====
         class CocktailApp {
             constructor() {
                 this.storage = new MobileStorageManager();
@@ -1312,9 +1771,12 @@ window.gasDebug = {
                     this.setupPWA();
                     await this.updateStorageStats();
                     const savedUrl = gas.url; if (savedUrl) document.getElementById('gasUrl').value = savedUrl;
+                    
+                    // 初始化管理員認證系統
+                    adminAuth.init();
                 } catch (err) { 
                     console.error('初始化失敗:', err); 
-                    gas.showConnectionStatus('❌ 初始化失敗: ' + err.message, 'error');
+                    gas.showConnectionStatus('⌫ 初始化失敗: ' + err.message, 'error');
                     this.showError('初始化失敗，請檢查 GAS 設定或重新整理。'); 
                 }
             }
@@ -1341,13 +1803,21 @@ window.gasDebug = {
                     document.getElementById('debugInfo').classList.remove('hidden');
                     try { 
                         const ok = await gas.test(); 
-                        // 狀態已在 gas.test() 中顯示
                     } catch (e) { 
-                        // 錯誤已在 gas.test() 中顯示
                     } 
                 });
 
-                this.navButtons.forEach((btn) => { btn.addEventListener('click', () => { this.navButtons.forEach(b => b.classList.remove('active')); btn.classList.add('active'); const pageKey = btn.dataset.page; Object.values(this.pages).forEach(p => p.classList.remove('active')); if (this.pages[pageKey]) this.pages[pageKey].classList.add('active'); if (pageKey === 'add' && this.successMessage) this.successMessage.style.display = 'none'; if (pageKey === 'settings') this.updateStorageStats(); }); });
+                this.navButtons.forEach((btn) => { 
+                    btn.addEventListener('click', () => { 
+                        this.navButtons.forEach(b => b.classList.remove('active')); 
+                        btn.classList.add('active'); 
+                        const pageKey = btn.dataset.page; 
+                        Object.values(this.pages).forEach(p => p.classList.remove('active')); 
+                        if (this.pages[pageKey]) this.pages[pageKey].classList.add('active'); 
+                        if (pageKey === 'add' && this.successMessage) this.successMessage.style.display = 'none'; 
+                        if (pageKey === 'settings') this.updateStorageStats(); 
+                    }); 
+                });
 
                 const form = document.getElementById('addCocktailForm');
                 this.successMessage = document.getElementById('successMessage');
@@ -1357,15 +1827,68 @@ window.gasDebug = {
                 const tagsDisplay = document.getElementById('tagsDisplay');
                 tagsInput.addEventListener('keydown', (e) => { if (e.key === 'Enter' && tagsInput.value.trim()) { e.preventDefault(); const tag = tagsInput.value.trim(); const chip = document.createElement('span'); chip.className = 'tag'; chip.dataset.tag = tag; chip.textContent = `#${tag} ×`; chip.addEventListener('click', () => chip.remove()); tagsDisplay.appendChild(chip); tagsInput.value = ''; } });
 
-                document.getElementById('closeDrawer').addEventListener('click', () => { const drawer = document.getElementById('editDrawer'); drawer.classList.add('hidden'); drawer.setAttribute('aria-hidden', 'true'); this.editTargetId = null; });
-                document.getElementById('saveCocktail').addEventListener('click', async (e) => { e.preventDefault(); await this.saveEdited(); });
-                document.getElementById('deleteCocktail').addEventListener('click', async (e) => { e.preventDefault(); if (confirm('確定要刪除這個酒譜嗎？')) await this.deleteCocktail(); });
+                // 編輯抽屜事件綁定 - 增強版
+                this.bindEditDrawerEvents();
 
                 const addImageInput = document.getElementById('cocktailImageFile');
                 const addImagePreview = document.getElementById('addImagePreview');
                 addImageInput.addEventListener('change', (e) => { addImagePreview.innerHTML = ''; const file = e.target.files[0]; if (file) { const url = URL.createObjectURL(file); const img = document.createElement('img'); img.src = url; Object.assign(img.style, { maxWidth: '200px', maxHeight: '150px', borderRadius: '8px', objectFit: 'cover' }); addImagePreview.appendChild(img); } });
 
                 document.getElementById('imageFile').addEventListener('change', (e) => { const preview = document.getElementById('imagePreview'); preview.innerHTML = ''; const file = e.target.files[0]; if (file) { const url = URL.createObjectURL(file); const img = document.createElement('img'); img.src = url; Object.assign(img.style, { maxWidth: '100%', borderRadius: '8px' }); preview.appendChild(img); const caption = document.createElement('div'); caption.textContent = '新上傳的圖片預覽'; Object.assign(caption.style, { fontSize: '.9rem', color: '#666', marginTop: '8px' }); preview.appendChild(caption); } });
+            }
+
+            // 編輯抽屜事件綁定 - 增強版
+            bindEditDrawerEvents() {
+                // X 按鈕關閉
+                document.getElementById('closeDrawerX').addEventListener('click', () => this.closeEditDrawer());
+                
+                // 取消按鈕
+                document.getElementById('cancelEdit').addEventListener('click', () => {
+                    if (confirm('確定要取消編輯嗎？未儲存的變更將會遺失。')) {
+                        this.closeEditDrawer();
+                    }
+                });
+
+                // 儲存按鈕
+                document.getElementById('saveCocktail').addEventListener('click', async (e) => { 
+                    e.preventDefault(); 
+                    await this.saveEdited(); 
+                });
+                
+                // 刪除按鈕
+                document.getElementById('deleteCocktail').addEventListener('click', async (e) => { 
+                    e.preventDefault(); 
+                    if (confirm('確定要刪除這個酒譜嗎？此操作無法復原！')) {
+                        await this.deleteCocktail(); 
+                    }
+                });
+                
+                // ESC 鍵關閉
+                document.addEventListener('keydown', (e) => {
+                    if (e.key === 'Escape') {
+                        const drawer = document.getElementById('editDrawer');
+                        if (!drawer.classList.contains('hidden')) {
+                            this.closeEditDrawer();
+                        }
+                    }
+                });
+                
+                // 點擊外部關閉
+                document.addEventListener('click', (e) => {
+                    const drawer = document.getElementById('editDrawer');
+                    if (!drawer.classList.contains('hidden') && !drawer.contains(e.target)) {
+                        if (!e.target.matches('[onclick*="editCocktail"]')) {
+                            this.closeEditDrawer();
+                        }
+                    }
+                });
+            }
+
+            closeEditDrawer() {
+                const drawer = document.getElementById('editDrawer'); 
+                drawer.classList.add('hidden'); 
+                drawer.setAttribute('aria-hidden', 'true'); 
+                this.editTargetId = null;
             }
 
             setupPWA() {
@@ -1404,6 +1927,8 @@ window.gasDebug = {
             }
 
             async handleAdd() {
+                if (!adminAuth.checkPermission('新增')) return;
+
                 try {
                     const title = document.getElementById('cocktailTitle').value.trim();
                     const category = document.getElementById('cocktailCategory').value.trim();
@@ -1433,7 +1958,7 @@ window.gasDebug = {
                     this.clearForm();
                 } catch (err) { 
                     console.error('新增失敗：', err); 
-                    gas.showConnectionStatus('❌ 新增失敗: ' + err.message, 'error');
+                    gas.showConnectionStatus('⌫ 新增失敗: ' + err.message, 'error');
                     alert('新增失敗：' + err.message); 
                 }
             }
@@ -1441,6 +1966,8 @@ window.gasDebug = {
             makeId() { return 'C' + String(Date.now()); }
 
             async editCocktail(id) {
+                if (!adminAuth.checkPermission('編輯')) return;
+
                 const c = this.cocktails.find(r => r.id === id); if (!c) return;
                 this.editTargetId = id;
                 const f = document.getElementById('editForm');
@@ -1465,11 +1992,11 @@ window.gasDebug = {
                     await this.storage.saveCocktail(updatedNorm);
                     await this.pullFromCloud({ silent: true });
                     this.render();
-                    const drawer = document.getElementById('editDrawer'); drawer.classList.add('hidden'); drawer.setAttribute('aria-hidden', 'true'); this.editTargetId = null;
+                    this.closeEditDrawer();
                     gas.showConnectionStatus('✅ 編輯儲存成功', 'success');
                 } catch (err) { 
                     console.error('儲存編輯失敗：', err); 
-                    gas.showConnectionStatus('❌ 儲存失敗: ' + err.message, 'error');
+                    gas.showConnectionStatus('⌫ 儲存失敗: ' + err.message, 'error');
                     alert('儲存失敗：' + err.message); 
                 }
             }
@@ -1481,14 +2008,11 @@ window.gasDebug = {
                     await this.storage.deleteCocktail(id); 
                     await this.pullFromCloud({ silent: true }); 
                     this.render(); 
-                    const drawer = document.getElementById('editDrawer'); 
-                    drawer.classList.add('hidden'); 
-                    drawer.setAttribute('aria-hidden', 'true'); 
-                    this.editTargetId = null;
+                    this.closeEditDrawer();
                     gas.showConnectionStatus('✅ 刪除成功', 'success');
                 } catch (err) { 
                     console.error('刪除失敗：', err); 
-                    gas.showConnectionStatus('❌ 刪除失敗: ' + err.message, 'error');
+                    gas.showConnectionStatus('⌫ 刪除失敗: ' + err.message, 'error');
                     alert('刪除失敗：' + err.message); 
                 }
             }
@@ -1523,7 +2047,7 @@ window.gasDebug = {
           <div class="cocktail-content">
             <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px;">
               <h3 class="cocktail-title">${c.title || ''}</h3>
-              <button onclick="app.editCocktail('${c.id}')" class="btn" style="font-size:.8rem; padding:4px 8px;">編輯</button>
+              <button onclick="app.editCocktail('${c.id}')" class="btn edit-only" style="font-size:.8rem; padding:4px 8px;">編輯</button>
             </div>
             <div class="cocktail-meta">
               ${glassType ? `<span class="meta-item">🥃 ${glassType}</span>` : ''}
@@ -1541,19 +2065,63 @@ window.gasDebug = {
                 }).join('');
             }
 
-            render() { this.updateStats(); this.renderCocktails(); this.updateViewClass(); }
+            render() { 
+                this.updateStats(); 
+                this.renderCocktails(); 
+                this.updateViewClass(); 
+            }
 
-            async updateStorageStats() { try { const s = await this.storage.getStorageStats(); const el = document.getElementById('storageStats'); if (el) { el.innerHTML = `<p><strong>酒譜數量：</strong> ${s.cocktailCount} 個</p><p><strong>圖片數量：</strong> ${s.imageCount} 張</p><p><strong>圖片大小：</strong> ${s.formattedImageSize}</p><p><strong>最後更新：</strong> ${new Date().toLocaleString('zh-TW')}</p>`; } } catch (e) { console.warn('統計失敗：', e); } }
+            async updateStorageStats() { 
+                try { 
+                    const s = await this.storage.getStorageStats(); 
+                    const el = document.getElementById('storageStats'); 
+                    if (el) { 
+                        el.innerHTML = `<p><strong>酒譜數量：</strong> ${s.cocktailCount} 個</p><p><strong>圖片數量：</strong> ${s.imageCount} 張</p><p><strong>圖片大小：</strong> ${s.formattedImageSize}</p><p><strong>最後更新：</strong> ${new Date().toLocaleString('zh-TW')}</p>`; 
+                    } 
+                } catch (e) { 
+                    console.warn('統計失敗：', e); 
+                } 
+            }
 
-            async confirmClearData() { if (confirm('⚠️ 確定要清除本機快取嗎？不影響雲端資料。')) { try { await this.storage.clearAllData(); this.cocktails = []; this.filteredCocktails = []; this.updateCategories(); this.render(); await this.updateStorageStats(); gas.showConnectionStatus('✅ 本機快取已清除', 'success'); } catch (err) { alert('清除失敗：' + err.message); } } }
+            async confirmClearData() { 
+                if (confirm('⚠️ 確定要清除本機快取嗎？不影響雲端資料。')) { 
+                    try { 
+                        await this.storage.clearAllData(); 
+                        this.cocktails = []; 
+                        this.filteredCocktails = []; 
+                        this.updateCategories(); 
+                        this.render(); 
+                        await this.updateStorageStats(); 
+                        gas.showConnectionStatus('✅ 本機快取已清除', 'success'); 
+                    } catch (err) { 
+                        alert('清除失敗：' + err.message); 
+                    } 
+                } 
+            }
 
-            async migrateLocalData() { const all = await this.storage.getAllCocktails(); for (const c of all) { const fixed = normalizeRecord(c); await this.storage.saveCocktail(fixed); } this.cocktails = await this.storage.getAllCocktails(); this.filteredCocktails = [...this.cocktails]; this.render(); alert('✅ 已完成本機資料格式遷移'); }
+            async migrateLocalData() { 
+                const all = await this.storage.getAllCocktails(); 
+                for (const c of all) { 
+                    const fixed = normalizeRecord(c); 
+                    await this.storage.saveCocktail(fixed); 
+                } 
+                this.cocktails = await this.storage.getAllCocktails(); 
+                this.filteredCocktails = [...this.cocktails]; 
+                this.render(); 
+                alert('✅ 已完成本機資料格式遷移'); 
+            }
 
             showError(msg) { alert(msg); }
         }
 
+        // 初始化應用程式
         const app = new CocktailApp();
         window.app = app;
+        
+        // 全域函數：檢查管理員權限
+        window.requireAdmin = function(operation = '此操作') {
+            return adminAuth.checkPermission(operation);
+        };
         
         // 暴露調試函數到全域
         window.gasDebug = {
@@ -1564,10 +2132,15 @@ window.gasDebug = {
             clearLogs: () => {
                 const debugContent = document.getElementById('debugContent');
                 if (debugContent) debugContent.innerHTML = '已清除日誌';
-            }
+            },
+            adminLogin: (username, password) => gas.adminLogin(username, password),
+            checkAdmin: () => console.log('Admin Status:', {
+                isAdmin: adminAuth.isAdmin,
+                user: adminAuth.adminUser,
+                token: adminAuth.adminToken ? 'Present' : 'None'
+            })
         };
     </script>
 </body>
-
 
 </html>
