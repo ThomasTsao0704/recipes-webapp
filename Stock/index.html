@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>當沖券差借券費率 Top 10</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans TC", Arial, sans-serif;
+           background: linear-gradient(135deg,#667eea 0%,#764ba2 100%); min-height: 100vh; color: #333; }
+    .container { max-width: 800px; margin: 0 auto; padding: 20px; }
+    .header { text-align: center; color: #fff; margin-bottom: 20px; }
+    .header h1 { font-size: 1.8rem; text-shadow: 2px 2px 4px rgba(0,0,0,.3); margin-bottom: 8px; }
+    .header p { opacity: .9; font-size: 14px; }
+    .update-time { display: inline-block; margin-top: 10px; padding: 6px 14px; border-radius: 20px;
+                   background: rgba(255,255,255,.2); backdrop-filter: blur(10px); font-size: 13px; }
+    .controls { background: #fff; padding: 15px; border-radius: 12px; margin-bottom: 15px; 
+                box-shadow: 0 8px 24px rgba(0,0,0,.08); }
+    .date-selector { display: flex; align-items: center; justify-content: center; gap: 15px; margin-bottom: 15px; flex-wrap: wrap;}
+    .date-selector label { font-weight: 600; color: #333; }
+    .date-selector select { padding: 8px 12px; border: 2px solid #dee2e6; border-radius: 8px; 
+                           font-size: 14px; background: #fff; min-width: 160px; }
+    .button-group { text-align: center; }
+    button { padding: 12px 20px; font-size: 14px; border-radius: 8px; cursor: pointer; 
+             border: none; background: #667eea; color: #fff; font-weight: 600; 
+             transition: all 0.2s; margin: 0 5px; }
+    button:hover { background: #5a6fd8; transform: translateY(-1px); }
+    .loading { color: #666; text-align: center; padding: 20px; background: #fff; border-radius: 12px; }
+    .table-section { background: #fff; border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,.08); overflow: hidden; }
+    .section-header { background: linear-gradient(135deg,#667eea,#764ba2); color: #fff; 
+                     padding: 15px 20px; font-weight: 600; font-size: 16px; }
+    table { width: 100%; border-collapse: collapse; }
+    th { background: #f8f9fa; color: #666; font-size: 13px; font-weight: 600; 
+         text-align: left; padding: 12px 15px; border-bottom: 2px solid #dee2e6; }
+    td { padding: 12px 15px; border-bottom: 1px solid #eee; }
+    tr:hover { background: #f8f9ff; }
+    .rank { background: linear-gradient(135deg, #ffd700, #ffed4e); color: #333; 
+            font-weight: bold; text-align: center; border-radius: 50%; 
+            width: 25px; height: 25px; line-height: 25px; font-size: 12px; margin: 0 auto; }
+    .rank.top3 { background: linear-gradient(135deg, #ff6b6b, #ee5a24); color: #fff; }
+    .qty { font-weight: 600; color: #2d3436; }
+    .fee { color: #e17055; font-weight: 500; }
+    .date-info { text-align: center; background: #e8f4f8; padding: 10px; 
+                 color: #2d3436; font-size: 14px; font-weight: 500; }
+    .alert { margin: 15px 0; padding: 12px 16px; border-radius: 8px; 
+             background: #fff3cd; border: 1px solid #ffeaa7; color: #856404; 
+             text-align: center; display: none; }
+    .alert.success { background: #e8f5e9; border-color: #a5d6a7; color: #2e7d32; }
+    .alert.error { background: #ffebee; border-color: #ffcdd2; color: #c62828; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🏆 當沖券差借券股數 Top 10</h1>
+      <p>依「券差日期」選擇並顯示當日加總最多的前10名</p>
+      <div class="update-time" id="lastUpdate">準備載入資料...</div>
+    </div>
+
+    <div class="controls">
+      <div class="date-selector">
+        <label for="dateSelect">📅 券差日期：</label>
+        <select id="dateSelect">
+          <option value="">請先載入資料</option>
+        </select>
+      </div>
+      <div class="button-group">
+        <button id="btnRefresh">🔄 重新抓取</button>
+        <button id="btnExport">📥 匯出 CSV</button>
+      </div>
+    </div>
+
+    <div id="alertMsg" class="alert"></div>
+    <div id="loadingMsg" class="loading">載入中，請稍候...</div>
+
+    <div class="table-section" id="tableSection" style="display: none;">
+      <div class="section-header">
+        <span>📊 借券股數排行榜</span>
+      </div>
+      <div class="date-info" id="dateInfo"></div>
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 60px; text-align: center;">排名</th>
+            <th>證券代號</th>
+            <th>證券名稱</th>
+            <th style="text-align: right;">借券股數</th>
+            <th style="text-align: right;">平均費率</th>
+            <th style="text-align: center;">來源</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    // ====== 工具 ======
+    const nf = new Intl.NumberFormat('zh-TW');
+    const showAlert = (msg, type='info') => {
+      const el = document.getElementById('alertMsg');
+      el.textContent = msg;
+      el.className = `alert ${type}`;
+      el.style.display = 'block';
+      setTimeout(() => el.style.display = 'none', 3000);
+    };
+    const updateClock = () => {
+      document.getElementById('lastUpdate').textContent =
+        '最後更新：' + new Date().toLocaleString('zh-TW', {
+          year: 'numeric', month: '2-digit', day: '2-digit',
+          hour: '2-digit', minute: '2-digit', second: '2-digit'
+        });
+    };
+    const toNum = v => Number(String(v ?? '').replace(/[,\s%]/g,'')) || 0;
+
+    // ROC(民國)轉ISO日期
+    const rocToISO = (s) => {
+      const m = String(s).match(/(\d{2,3})[\/年.-](\d{1,2})[\/月.-](\d{1,2})/);
+      if(!m) return '';
+      const y = (+m[1] + 1911).toString().padStart(4,'0');
+      const mm = m[2].padStart(2,'0');
+      const dd = m[3].padStart(2,'0');
+      return `${y}-${mm}-${dd}`;
+    };
+
+    // ====== 資料來源 ======
+    const URL_TPEX = 'https://www.tpex.org.tw/www/zh-tw/intraday/fee?id=&response=html';
+    const URL_TWSE = 'https://www.twse.com.tw/rwd/zh/dayTrading/BFIF8U?response=html';
+
+    async function fetchHTML(url) {
+      try {
+        const r = await fetch(url, { cache: 'no-store' });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return await r.text();
+      } catch (e) {
+        const proxy = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url);
+        const r2 = await fetch(proxy, { cache: 'no-store' });
+        if (!r2.ok) throw new Error(`Proxy HTTP ${r2.status}`);
+        return await r2.text();
+      }
+    }
+
+    function parseFeeTable(htmlText, source) {
+      const doc = new DOMParser().parseFromString(htmlText, 'text/html');
+      const tables = Array.from(doc.querySelectorAll('table'));
+      let table = tables.find(t =>
+        /券差日期/.test(t.textContent) && /證券代號/.test(t.textContent)
+      );
+      if (!table) return [];
+
+      // 找到包含標題列（不能有 colspan）
+      const headerTr = Array.from(table.querySelectorAll('thead tr, tr')).find(tr => {
+        const ths = Array.from(tr.querySelectorAll('th'));
+        if (ths.length < 4) return false;
+        if (ths.some(th => th.hasAttribute('colspan'))) return false;
+        const text = ths.map(th => th.textContent.trim()).join(',');
+        return /券差日期/.test(text) && /證券代號/.test(text);
+      });
+      if (!headerTr) return [];
+
+      const headers = Array.from(headerTr.querySelectorAll('th')).map(th => th.textContent.trim());
+      const idx = (re) => headers.findIndex(h => re.test(h));
+      const iDate = idx(/券差日期/);
+      const iCode = idx(/證券代號/);
+      const iName = idx(/證券名稱/);
+      const iQty  = idx(/(投資人)?借券股數/);
+      const iFee  = idx(/(投資人)?借券費率/);
+
+      const bodyTrs =
+        Array.from(table.querySelectorAll('tbody tr')).length
+          ? Array.from(table.querySelectorAll('tbody tr'))
+          : Array.from(table.querySelectorAll('tr')).filter(tr => tr.querySelectorAll('td').length);
+
+      const rows = [];
+      for (const tr of bodyTrs) {
+        const tds = Array.from(tr.querySelectorAll('td,th')).map(td => td.textContent.trim());
+        if (!tds.length) continue;
+
+        const dateStr = tds[iDate] || '';
+        const code = tds[iCode] || '';
+        const name = tds[iName] || '';
+        const qty  = toNum(tds[iQty]);
+
+        let feeRaw = (tds[iFee] ?? '').replace('%','').trim();
+        const fee = feeRaw === '' ? null : Number(feeRaw);
+
+        if (!dateStr || !code) continue;
+
+        const iso = rocToISO(dateStr);
+        rows.push({
+          date: dateStr,       // 原始（民國）字串
+          dateISO: iso,        // ISO yyyy-mm-dd
+          source, code, name, qty, fee
+        });
+      }
+      return rows;
+    }
+
+    // ====== 狀態 ======
+    let ALL_ROWS = [];          // 全來源、全日期原始列
+    let AVAILABLE_DATES = [];   // 可選日期 [{iso, display}]
+    let TOP10_DATA = [];        // 目前選定日期的彙整結果
+    let CURRENT_DATE_ISO = '';  // 目前選定日期（ISO）
+
+    // 依指定日期重算 Top10
+    function computeTop10ByDate(dateISO) {
+      const rows = ALL_ROWS.filter(r => r.dateISO === dateISO);
+      const codeMap = new Map();
+      for (const row of rows) {
+        if (!codeMap.has(row.code)) {
+          codeMap.set(row.code, {
+            code: row.code,
+            name: row.name,
+            totalQty: 0,
+            fees: [],
+            sources: new Set()
+          });
+        }
+        const item = codeMap.get(row.code);
+        item.totalQty += row.qty;
+        if (row.fee !== null) item.fees.push(row.fee);
+        item.sources.add(row.source);
+      }
+
+      TOP10_DATA = Array.from(codeMap.values())
+        .map(item => ({
+          ...item,
+          avgFee: item.fees.length ? item.fees.reduce((a,b) => a+b, 0) / item.fees.length : null,
+          sourcesText: Array.from(item.sources).join(', ')
+        }))
+        .sort((a,b) => b.totalQty - a.totalQty)
+        .slice(0, 10);
+    }
+
+    // 渲染表格
+    function renderTable() {
+      const tbody = document.getElementById('tbody');
+      const dateInfo = document.getElementById('dateInfo');
+
+      const displayStr = AVAILABLE_DATES.find(d => d.iso === CURRENT_DATE_ISO)?.display || CURRENT_DATE_ISO;
+      dateInfo.textContent = `資料日期：${displayStr}（共 ${TOP10_DATA.length} 名）`;
+
+      tbody.innerHTML = TOP10_DATA.map((item, index) => {
+        const rank = index + 1;
+        const rankClass = rank <= 3 ? 'rank top3' : 'rank';
+        const feeText = item.avgFee !== null ? `${item.avgFee.toFixed(2)}%` : '-';
+        return `
+          <tr>
+            <td><div class="${rankClass}">${rank}</div></td>
+            <td><strong>${item.code}</strong></td>
+            <td>${item.name || '-'}</td>
+            <td style="text-align: right;" class="qty">${nf.format(item.totalQty)}</td>
+            <td style="text-align: right;" class="fee">${feeText}</td>
+            <td style="text-align: center; font-size: 12px; color: #666;">${item.sourcesText}</td>
+          </tr>
+        `;
+      }).join('');
+
+      document.getElementById('loadingMsg').style.display = 'none';
+      document.getElementById('tableSection').style.display = 'block';
+    }
+
+    // 匯出 CSV（帶入目前選定日期）
+    function exportCSV() {
+      if (TOP10_DATA.length === 0) {
+        showAlert('沒有可匯出的資料', 'error');
+        return;
+      }
+      const header = ['排名', '證券代號', '證券名稱', '借券股數', '平均費率(%)', '來源'];
+      const rows = TOP10_DATA.map((item, index) => [
+        index + 1,
+        item.code,
+        item.name || '',
+        item.totalQty,
+        item.avgFee !== null ? item.avgFee.toFixed(2) : '',
+        item.sourcesText
+      ]);
+      const csv = [
+        header.join(','),
+        ...rows.map(row => 
+          row.map(cell => 
+            typeof cell === 'string' && cell.includes(',') 
+              ? `"${cell.replace(/"/g, '""')}"` 
+              : cell
+          ).join(',')
+        )
+      ].join('\n');
+
+      const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      const displayStr = AVAILABLE_DATES.find(d => d.iso === CURRENT_DATE_ISO)?.display?.replace(/[\/年月]/g,'-').replace(/日/,'') || CURRENT_DATE_ISO;
+      a.download = `當沖券差Top10_${displayStr}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      showAlert('已匯出 CSV 檔案', 'success');
+    }
+
+    // 建立日期下拉
+    function buildDateSelect() {
+      const sel = document.getElementById('dateSelect');
+      sel.innerHTML = AVAILABLE_DATES.map(d => 
+        `<option value="${d.iso}">${d.display}</option>`
+      ).join('');
+      sel.value = CURRENT_DATE_ISO;
+      sel.onchange = () => {
+        CURRENT_DATE_ISO = sel.value;
+        computeTop10ByDate(CURRENT_DATE_ISO);
+        renderTable();
+      };
+    }
+
+    // 主要流程：抓→解析→建日期清單→預設最新→渲染
+    async function loadData() {
+      document.getElementById('loadingMsg').style.display = 'block';
+      document.getElementById('tableSection').style.display = 'none';
+
+      try {
+        const [tpexHTML, twseHTML] = await Promise.all([
+          fetchHTML(URL_TPEX),
+          fetchHTML(URL_TWSE)
+        ]);
+        const tpexRows = parseFeeTable(tpexHTML, 'TPEx');
+        const twseRows = parseFeeTable(twseHTML, 'TWSE');
+        ALL_ROWS = [...tpexRows, ...twseRows];
+
+        if (!ALL_ROWS.length) throw new Error('未取得任何資料');
+
+        // 蒐集所有可用日期
+        const dateSet = new Map(); // iso -> display
+        for (const r of ALL_ROWS) {
+          if (r.dateISO) dateSet.set(r.dateISO, r.date); // 用原始券差日期字串當 display
+        }
+        AVAILABLE_DATES = Array
+          .from(dateSet.entries())
+          .map(([iso, display]) => ({ iso, display }))
+          .sort((a,b) => a.iso < b.iso ? 1 : -1); // 由新到舊
+
+        if (!AVAILABLE_DATES.length) throw new Error('找不到有效日期');
+
+        // 預設選最新
+        CURRENT_DATE_ISO = AVAILABLE_DATES[0].iso;
+
+        // 重算並渲染
+        computeTop10ByDate(CURRENT_DATE_ISO);
+        buildDateSelect();
+        renderTable();
+        updateClock();
+
+        showAlert(`載入成功！共 ${ALL_ROWS.length} 筆原始列，日期數：${AVAILABLE_DATES.length}`, 'success');
+      } catch (e) {
+        console.error(e);
+        showAlert('載入失敗：' + e.message, 'error');
+        document.getElementById('loadingMsg').innerHTML = '<div style="color: #c62828;">❌ 載入失敗</div>';
+      }
+    }
+
+    // 綁定事件
+    document.addEventListener('DOMContentLoaded', () => {
+      document.getElementById('btnRefresh').addEventListener('click', loadData);
+      document.getElementById('btnExport').addEventListener('click', exportCSV);
+      loadData(); // 自動載入一次
+    });
+  </script>
+</body>
+</html>
